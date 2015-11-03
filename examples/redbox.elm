@@ -1,4 +1,4 @@
-module TestAnima where
+module RedBox where
 
 import Anima exposing (..)
 import Graphics.Element as El
@@ -21,10 +21,8 @@ import Focus
 type Input = Quiet | Click | TimeStep Float | ResizeWindow (Int,Int)
 
 type alias Env = {windowSize : (Int,Int)}
-type alias DirectionE env = {env | color : Color.Color, x : Float}
-type alias ViewStateE env = DirectionE env
-type alias Direction = DirectionE Env
-type alias ViewState = ViewStateE Env
+type alias Direction env = {env | color : Color.Color, x : Float}
+type alias ViewState env = Direction env
 
 animationNeeded = Signal.constant True
 frames = Time.fpsWhen 60 animationNeeded
@@ -40,41 +38,45 @@ input = Signal.mergeMany
 type alias Model = {flipFlop : Bool}
 
 initial = 
-    { model = { flipFlop = False }
+    { model     = { flipFlop = False }
     , direction = { color = Color.red, x = 256.0, windowSize = (1024,768) }
     , viewstate = { color = Color.red, x = 256.0, windowSize = (1024,768) }
-    , view = El.show "initializing..."
+    , view      = El.show "initializing..."
     }
 
+app : OpinionatedApp Input Model (Direction Env) (ViewState Env) El.Element
 app = {
-    modelProc = 
-        \input model ->
-            case input of
-                Click -> { model | flipFlop <- not model.flipFlop }
-                _ -> model
-    , director =
-        \(input, model) dir ->
-            let dir2 = case input of
-                            ResizeWindow (w,h) ->
-                                { dir | windowSize <- (w,h) }
-                            _ ->
-                                dir
-                (w,h) = dir2.windowSize
-                dx = 0.25 * toFloat w
-            in { dir2 | x <- if model.flipFlop then -dx else dx }
+    modelProc input model = 
+        case input of
+            Click -> { model | flipFlop <- not model.flipFlop }
+            _ -> model
+
+    , director (input, model) dir =
+        let dir2 = case input of
+                        ResizeWindow (w,h) ->
+                            { dir | windowSize <- (w,h) }
+                        _ ->
+                            dir
+            (w,h) = dir2.windowSize
+            dx = 0.25 * toFloat w
+        in { dir2 | x <- if model.flipFlop then -dx else dx }
+
     , animator = 
         filterProp x_ (springy 3.0 1.5 0.0)
-    , timeStep = 
-        \i -> case i of
-                    TimeStep dt -> Just dt
-                    _ -> Nothing
-    , viewProc =
-        \(model,vs) ->
-            let (w,h) = vs.windowSize
-            in
-               Co.collage w h [Co.rect 100.0 100.0 |> Co.filled vs.color |> Co.moveX vs.x]
-                   |> In.clickable (Signal.message clicks.address Click)
-    , initial = initial
+
+    , timeStep i = 
+        case i of
+            TimeStep dt -> Just dt
+            _ -> Nothing
+
+    , viewProc (model, vs) =
+        let (w,h) = vs.windowSize
+        in
+           Co.collage w h [Co.rect 100.0 100.0 |> Co.filled vs.color |> Co.moveX vs.x]
+               |> In.clickable (Signal.message clicks.address Click)
+
+    , initial = 
+        initial
     }
 
 main = Anima.runApp (appify app) input
