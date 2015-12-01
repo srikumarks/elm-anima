@@ -57,12 +57,13 @@ intervalLimit = 10 * samplingInterval
 biquad : Space a -> BiQuadSpec -> SecondOrderFilter a
 biquad space bq (dtn, xn) (dt0, xn0, yn1, yn2, xn1, xn2) =
     let
-        dt = min intervalLimit (dt0 + dtn)
+        dtsum = dt0 + dtn
+        dt = min intervalLimit dtsum
     in
        if dt >= samplingInterval
           then let
                     sadd = space.add
-                    x = space.scale (1.0/dt) (space.lsum dt0 xn0 dtn xn)
+                    x = space.scale (1.0/dtsum) (space.lsum dt0 xn0 dtn xn)
                     nexty = space.lsum bq.b0 xn bq.b1 xn1
                                 `sadd` space.lsum bq.b2 xn2 (negate bq.a1) yn1
                                 `sadd` space.scale (negate bq.a2) yn2
@@ -72,7 +73,7 @@ biquad space bq (dtn, xn) (dt0, xn0, yn1, yn2, xn1, xn2) =
                       bq
                       (0.0, x)
                       (dt - samplingInterval, x, nexty, yn1, x, xn1)
-          else ((dt,yn1), (dt, xn0, yn1, yn2, xn1, xn2))
+          else ((dt, yn1), (dt, xn0, yn1, yn2, xn1, xn2))
 
 
 -- From http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt
