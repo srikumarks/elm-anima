@@ -1,0 +1,9 @@
+*~
+*.bak
+*.swp
+src/elm-stuff
+src/elm.js
+src/elm-package.json
+examples/elm-stuff
+examples/elm.js
+examples/elm-package.json
