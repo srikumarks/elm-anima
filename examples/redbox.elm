@@ -11,69 +11,54 @@ import Signal
 import Debug exposing (..)
 import Time
 import Automaton as Auto exposing ((>>>))
-import Focus
+import Focus exposing ((=>))
 
 -- A simple application that shows a red box that can be in
 -- one of two positions within the window. Clicking within the
 -- window causes the box to jump to the other position using a
 -- springy animation.
 
-type Input = Quiet | Click | TimeStep Float | ResizeWindow (Int,Int)
+type Input = Quiet | Click
 
-type alias Env = {windowSize : (Int,Int)}
-type alias Direction env = {env | color : Color.Color, x : Float}
-type alias ViewState env = Direction env
+type alias Direction = {color : Color.Color, x : Float}
+type alias ViewState = Direction
 
-animationNeeded = Signal.constant True
-frames = Time.fpsWhen 60 animationNeeded
 clicks = Signal.mailbox Quiet
-windowResize = Signal.map ResizeWindow Window.dimensions
 
-input = Signal.mergeMany
-    [ windowResize
-    , clicks.signal
-    , Signal.map (\x -> TimeStep (Time.inSeconds x)) frames
-    ]
+input = clicks.signal
 
 type alias Model = {flipFlop : Bool}
 
 initial = 
     { model     = { flipFlop = False }
-    , direction = { color = Color.red, x = 256.0, windowSize = (1024,768) }
-    , viewstate = { color = Color.red, x = 256.0, windowSize = (1024,768) }
+    , direction = { color = Color.red, x = 256.0 }
+    , viewstate = { color = Color.red, x = 256.0 }
     , view      = El.show "initializing..."
     }
 
-app : OpinionatedApp Input Model (Direction Env) (ViewState Env) El.Element
+app : OpinionatedApp Input Model Direction ViewState El.Element
 app = {
-    modelProc input model = 
+    modeller = \input model ->
         case input of
-            Click -> { model | flipFlop <- not model.flipFlop }
+            Click -> { model | flipFlop = not model.flipFlop }
             _ -> model
 
-    , director (input, model) dir =
-        let dir2 = case input of
-                        ResizeWindow (w,h) ->
-                            { dir | windowSize <- (w,h) }
-                        _ ->
-                            dir
-            (w,h) = dir2.windowSize
-            dx = 0.25 * toFloat w
-        in { dir2 | x <- if model.flipFlop then -dx else dx }
+    , director = \(input, model) dir ->
+        let dx = 0.25 * toFloat dir.env.width
+            data = dir.data
+        in
+           {dir | data = {data | x = if model.flipFlop then -dx else dx}}
 
     , animator = 
-        filterProp x_ (springy 3.0 1.5 0.0)
+        filterProp (data_ => x_) (springy 3.0 1.5 0.0)
 
-    , timeStep i = 
-        case i of
-            TimeStep dt -> Just dt
-            _ -> Nothing
-
-    , viewProc (model, vs) =
-        let (w,h) = vs.windowSize
-        in
-           Co.collage w h [Co.rect 100.0 100.0 |> Co.filled vs.color |> Co.moveX vs.x]
-               |> In.clickable (Signal.message clicks.address Click)
+    , viewer = \(model, vs) ->
+        Co.collage vs.env.width vs.env.height [
+                Co.rect 100.0 100.0 
+                    |> Co.filled vs.data.color 
+                    |> Co.moveX vs.data.x
+            ]
+            |> In.clickable (Signal.message clicks.address Click)
 
     , initial = 
         initial

@@ -67,7 +67,7 @@ applyForce s dt f p =
     case f of
         Drag x                  -> drag s x dt p
         SomeForce f             -> force s f dt p
-        Kick dpx                -> {p | dpx <- s.add dpx p.dpx}
+        Kick dpx                -> {p | dpx = s.add dpx p.dpx}
         Wall dir e x            -> wall s dir e x dt p
         Buff dir x              -> wall s dir 0.0 x dt p
         Friction rest munorm    -> friction s rest munorm dt p
@@ -80,9 +80,9 @@ applyForce s dt f p =
 move : Space s -> TimeStep -> ParticleState s -> ParticleState s
 move s dt p =
     let newpx = s.add p.px p.dpx
-    in { p | px <- newpx, 
-             dpx <- s.zero, 
-             x <- s.madd (dt / p.mass) newpx p.x }
+    in { p | px = newpx, 
+             dpx = s.zero, 
+             x = s.madd (dt / p.mass) newpx p.x }
 
 -- Forces
 
@@ -94,20 +94,20 @@ move s dt p =
 -- position.
 drag : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s
 drag s x dt p =
-    { p | x <- x,
-          px <- s.scale (p.mass/dt) (s.sub x p.x),
-          dpx <- s.zero }
+    { p | x = x,
+          px = s.scale (p.mass/dt) (s.sub x p.x),
+          dpx = s.zero }
 
 -- Models a steady force applied over the given time step.
 force : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s
-force s f dt p = { p | dpx <- s.madd dt f p.dpx }
+force s f dt p = { p | dpx = s.madd dt f p.dpx }
 
 -- "Bounces" the particle off the wall on impact.
 wall : Space s -> s -> Float -> s -> TimeStep -> ParticleState s -> ParticleState s
 wall s dir e x dt obj =
     let pimpact = s.dot obj.px dir
     in  if pimpact < 0.0 && abs pimpact * dt / obj.mass > abs (s.dot dir (s.sub obj.x x))
-           then { obj | dpx <- s.madd (negate (1.0 + e)) (s.scale pimpact dir) obj.dpx }
+           then { obj | dpx = s.madd (negate (1.0 + e)) (s.scale pimpact dir) obj.dpx }
            else obj
 
 -- Applies a steady frictional force on the particle. If the speed
@@ -119,7 +119,7 @@ friction s rest munorm dt obj =
         speed = s.abs obj.px
     in
        if speed <= obj.mass * rest
-          then { obj | dpx <- s.sub obj.dpx obj.px }
+          then { obj | dpx = s.sub obj.dpx obj.px }
           else force s (s.scale (negate munorm / speed) obj.px) dt obj
 
 -- Models a classic Hooke spring with one end anchored to a point in space and the other

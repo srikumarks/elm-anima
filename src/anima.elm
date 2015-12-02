@@ -8,6 +8,8 @@ import Automaton as Auto exposing ((>>>))
 import Focus
 import Color
 import Debug exposing (..)
+import Time
+import Window
 
 type alias TimeStep = GA.TimeStep
 type alias Space space = Space.Space space
@@ -84,10 +86,10 @@ particle2D = Physics.particle f2d
 -- Simple application framework
 
 type alias App input model direction viewstate output =
-    { modelProc : Auto.Automaton input model
+    { modeller : Auto.Automaton input model
     , director : Auto.Automaton (input, model) direction
     , animator : Animation direction viewstate
-    , viewProc : Auto.Automaton (model, viewstate) output
+    , viewer : Auto.Automaton (model, viewstate) output
     , timeStep : input -> Maybe TimeStep
     , initial :
         { model : model
@@ -96,12 +98,40 @@ type alias App input model direction viewstate output =
         }
     }
 
+type CommonEvent = TimeStep Float | ResizeWindow Int Int
+type Event a = EnvEvent CommonEvent | UserEvent a
+
+type alias Env = {dt : TimeStep, time : Float, width: Int, height: Int}
+type alias WithEnv base = {env: Env, data: base}
+
+env0 : a -> WithEnv a
+env0 a = {data = a, env = {dt = 0.0, time = 0.0, width = 640, height = 480}}
+
+withWindowSize : Int -> Int -> WithEnv a -> WithEnv a
+withWindowSize w h rec = let env = rec.env 
+                         in {rec | env = {env | width = w, height = h}}
+
+withTimeStep dt rec = let env = rec.env
+                 in {rec | env = {env | dt = dt, time = env.time + dt}}
+                    
+timeStep : Event a -> Maybe TimeStep
+timeStep e = case e of
+    EnvEvent (TimeStep dt) -> Just dt
+    _ -> Nothing
+    
+animationNeeded = Signal.constant True
+frames = Time.fpsWhen 60 animationNeeded
+windowResizeEvents = Signal.map (\(w,h) -> EnvEvent (ResizeWindow w h)) Window.dimensions
+timeStepEvents = Signal.map (\dt -> EnvEvent (TimeStep (Time.inSeconds dt))) frames
+
+env : Signal Env
+env = Signal.map2 (\(w,h) dt -> {dt = Time.inSeconds dt, time = 0.0, width = w, height = h}) Window.dimensions frames
+            
 type alias OpinionatedApp input model direction viewstate output =
-    { modelProc : input -> model -> model
-    , director : (input, model) -> direction -> direction
-    , animator : Animation direction viewstate
-    , viewProc : (model, viewstate) -> output
-    , timeStep : input -> Maybe TimeStep
+    { modeller : input -> model -> model
+    , director : (input, model) -> (WithEnv direction) -> (WithEnv direction)
+    , animator : Animation (WithEnv direction) (WithEnv viewstate)
+    , viewer : (model, WithEnv viewstate) -> output
     , initial :
         { model : model
         , view : output
@@ -110,29 +140,57 @@ type alias OpinionatedApp input model direction viewstate output =
         }
     }
 
+convertModeller : (input -> model -> model) -> (Event input -> model -> model)
+convertModeller modeller =
+    \ einput model ->
+        case einput of
+            UserEvent ue -> modeller ue model
+            _ -> model
+
+convertDirector : 
+    ((input,model) -> WithEnv director -> WithEnv director) 
+    -> ((Event input, model) -> WithEnv director -> (WithEnv director, WithEnv director))
+convertDirector director =
+    \(input,model) dir -> 
+        let dir1 = case input of
+                        EnvEvent (ResizeWindow w h) ->
+                            withWindowSize w h dir
+                        EnvEvent (TimeStep dt) ->
+                            withTimeStep dt dir
+                        _ ->
+                            dir
+            dir2 = case input of
+                        UserEvent ue ->
+                            director (ue,model) dir1
+                        _ ->
+                            dir1
+        in
+           (dir2,dir2)
+
+mergeEnvironmentChanges : Signal input -> Signal (Event input)
+mergeEnvironmentChanges sig = Signal.mergeMany [windowResizeEvents, timeStepEvents, Signal.map UserEvent sig]
+
 appify : OpinionatedApp input model direction viewstate output 
-            -> App input model direction viewstate output
+            -> App (Event input) model (WithEnv direction) (WithEnv viewstate) output
 appify app =
-    { modelProc = procWithUpdater app.modelProc app.initial.model
-    , director = animateWith app.initial.direction 
-                    (\(input, model) dir -> 
-                        let dir2 = app.director (input, model) dir
-                        in (dir2,dir2))
+    { modeller = procWithUpdater (convertModeller app.modeller) app.initial.model
+    , director = animateWith (env0 app.initial.direction) (convertDirector app.director)
     , animator = app.animator
-    , viewProc = Auto.pure app.viewProc
-    , timeStep = app.timeStep
+    , viewer = Auto.pure app.viewer
+    , timeStep = timeStep
     , initial = { model = app.initial.model
                 , view = app.initial.view
-                , viewstate = app.initial.viewstate
+                , viewstate = env0 app.initial.viewstate
                 }
     }
 
-runApp : App input model direction viewstate output -> Signal input -> Signal output
-runApp app input =
+runApp : App (Event input) model direction viewstate output -> Signal input -> Signal output
+runApp app userInput =
     let
-        modelSig = Auto.run app.modelProc app.initial.model input
+        input = mergeEnvironmentChanges userInput
+        modelSig = Auto.run app.modeller app.initial.model input
         viewStateSig = Auto.run (controllerProc app.timeStep app.director (app.animator |> dropTimeStep) app.initial.viewstate) app.initial.viewstate (Signal.map2 (,) input modelSig)
-        viewSig = Auto.run app.viewProc app.initial.view (Signal.map2 (,) modelSig viewStateSig)
+        viewSig = Auto.run app.viewer app.initial.view (Signal.map2 (,) modelSig viewStateSig)
     in
        viewSig
 
@@ -166,7 +224,7 @@ controllerProc timeStep director animator vs0 =
 
 -- helpers
 
--- Definiting a property animation like this permits us to chain
+-- Defining a property animation like this permits us to chain
 -- animations of different record properties in order to combine
 -- their outputs.
 type alias PropertyAnim recIn recOut = Animation (recIn,recOut) (recIn,recOut)
@@ -182,6 +240,17 @@ animProp focIn focOut anim =
                 (anim2,(_,space1)) = Auto.step (dt,dir1) anim
             in ((dt,(recIn,Focus.set focOut space1 recOut)), anim2))
 
+animPropInline : Focus.Focus rec dir
+                    -> Animation dir dir
+                    -> PropertyAnim rec rec
+animPropInline foc anim =
+    animateWith anim
+        (\(dt, (rec, _)) anim ->
+            let dir1 = Focus.get foc rec
+                (anim2, (_, space1)) = Auto.step (dt, dir1) anim
+                rec2 = Focus.set foc space1 rec
+            in ((dt, (rec2, rec2)), anim2))
+
 copyProp : Focus.Focus recIn x
                 -> Focus.Focus recOut x
                 -> PropertyAnim recIn recOut
@@ -192,8 +261,9 @@ copyProp focIn focOut =
 dropTimeStep anim =
     anim >>> Auto.pure (\(_,x) -> x)
 
-x_ = Focus.create .x (\f rec -> {rec | x <- f rec.x})
-y_ = Focus.create .y (\f rec -> {rec | y <- f rec.y})
+data_ = Focus.create .data (\f rec -> {rec | data = f rec.data})
+x_ = Focus.create .x (\f rec -> {rec | x = f rec.x})
+y_ = Focus.create .y (\f rec -> {rec | y = f rec.y})
 
 filterProp : Focus.Focus rec space -> Filter space -> Filter rec
 filterProp focus anim =
@@ -203,9 +273,10 @@ filterProp focus anim =
                 (anim2,(_,space1)) = Auto.step (dt,dir1) anim
             in ((dt,Focus.set focus space1 recIn), anim2))
 
-animateRec : recOut -> List (Animation (recIn,recOut) (recIn,recOut)) -> Animation recIn recOut
+animateRec : recOut -> List (PropertyAnim recIn recOut) -> Animation recIn recOut
 animateRec recOut anims =
     let inFilter = Auto.pure (\(dt,i) -> (dt,(i,recOut)))
         outFilter = Auto.pure (\(dt,(_,o)) -> (dt,o))
     in
        inFilter >>> List.foldl (>>>) outFilter anims
+
