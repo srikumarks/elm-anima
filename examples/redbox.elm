@@ -13,24 +13,32 @@ import Time
 import Automaton as Auto exposing ((>>>))
 import Focus exposing ((=>))
 
--- A simple application that shows a red box that can be in
--- one of two positions within the window. Clicking within the
--- window causes the box to jump to the other position using a
--- springy animation.
+{- A simple application that shows a red box that can be in one of two
+positions within the window. Clicking within the window causes the
+box to jump to the other position using a springy animation. -}
 
+{- Our only input is a click within the box to switch its position. -}
 type Input = Quiet | Click
 
+{- Our only model state is a boolean - indicating whether the box
+is on the left hand side or the right hand side. -}
+type alias Model = {boxIsToTheLeft : Bool}
+
+{- Given the position indication, the director decides a color for the box
+and its actual stable position within the window. -}
 type alias Direction = {color : Color.Color, x : Float}
+
+{- The view state is structurally the same as the direction, except that the
+meaning of the "x" field is "the position of the box right now" as opposed to
+"the stable position of the box" as indicated by the direction. -}
 type alias ViewState = Direction
 
 clicks = Signal.mailbox Quiet
 
 input = clicks.signal
 
-type alias Model = {flipFlop : Bool}
-
 initial = 
-    { model     = { flipFlop = False }
+    { model     = { boxIsToTheLeft = False }
     , direction = { color = Color.red, x = 256.0 }
     , viewstate = { color = Color.red, x = 256.0 }
     , view      = El.show "initializing..."
@@ -38,20 +46,31 @@ initial =
 
 app : OpinionatedApp Input Model Direction ViewState El.Element
 app = {
+
+    {- The modeller responds to the input by flipping the position
+    of the box from left to right or vice versa. -}
     modeller = \input model ->
         case input of
-            Click -> { model | flipFlop = not model.flipFlop }
+            Click -> { model | boxIsToTheLeft = not model.boxIsToTheLeft }
             _ -> model
 
+    {- Based on the model, the director decides the stable position
+    of the box within the window, taking into account the window
+    environment. -}
     , director = \(input, model) dir ->
         let dx = 0.25 * toFloat dir.env.width
             data = dir.data
         in
-           {dir | data = {data | x = if model.flipFlop then -dx else dx}}
+           {dir | data = { data | x = if model.boxIsToTheLeft then -dx else dx } }
 
+    {- The animator specifies how to achieve the position indicated
+    by the director. In this case, the indicated stable position is
+    to be reached using a springy animation. -}
     , animator = 
-        filterProp (data_ => x_) (springy 3.0 1.5 0.0)
+        filterProp (data_ => x_) (springy 3.0 1.5 initial.direction.x)
 
+    {- The viewer takes the position indicated by the animator and renders
+    the box at that position. -}
     , viewer = \(model, vs) ->
         Co.collage vs.env.width vs.env.height [
                 Co.rect 100.0 100.0 
@@ -62,6 +81,7 @@ app = {
 
     , initial = 
         initial
+
     }
 
-main = Anima.runApp (appify app) input
+main = Anima.runOpinionatedApp app input
