@@ -44,7 +44,7 @@ type alias Direction = { angle : Float, numPhotos : Int, angleToPhotoIndex : Flo
 meaning of angle is different. This angle is a dynamic value and the photo
 associated with the angle can change with the angle.  To lookup the photo url,
 you need to take modulo number of photos. -}
-type alias ViewState = {angle : Float, photoIndex : Int, flip : Boolean}
+type alias ViewState = {angle : Float, photoIndex : Int, flip : Bool}
 
 clicks = Signal.mailbox Quiet
 
@@ -64,7 +64,7 @@ photoURLs =
 initial = 
     { model     = { photoURLs = Array.fromList photoURLs, currentPhoto = 0 }
     , direction = { angle = 0.0
-                  , numPhotos = Array.length initial.model.photoURLs
+                  , numPhotos = List.length photoURLs
                   , angleToPhotoIndex = \angle -> floor ((angle + 90) / 180)
                   }
     , viewstate = { angle = 0.0, photoIndex = 0, flip = False }
