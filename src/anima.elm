@@ -194,6 +194,10 @@ runApp app userInput =
     in
        viewSig
 
+runOpinionatedApp : OpinionatedApp input model direction viewstate output -> Signal input -> Signal output
+runOpinionatedApp app userInput =
+    runApp (appify app) userInput
+
 procWithUpdater : (input -> model -> model) -> model -> Auto.Automaton input model
 procWithUpdater updater initialModel =
     animateWith initialModel
@@ -223,6 +227,13 @@ controllerProc timeStep director animator vs0 =
 
 
 -- helpers
+
+-- Make a pure animation record transformer
+pureData : (recIn -> recOut) -> Animation (WithEnv recIn) (WithEnv recOut)
+pureData f = Auto.pure (\(dt,a) -> (dt, {env = a.env, data = f a.data}))
+
+pure : (recIn -> recOut) -> Animation recIn recOut
+pure f = Auto.pure (\(dt,a) -> (dt, f a))
 
 -- Defining a property animation like this permits us to chain
 -- animations of different record properties in order to combine
