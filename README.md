@@ -21,6 +21,72 @@ versions of these examples are also available in the `examples/build/' folder.
 2. [Photo viewer](https://github.com/srikumarks/elm-anima/blob/master/examples/photos.elm)
 3. [Red box, but using physics](https://github.com/srikumarks/elm-anima/blob/master/examples/redbox_physics.elm)
 
+# Key idea
+
+The framework treats an "app" as a wiring up of four processes - a "modeller", "director",
+"animator" and "viewer".
+
+- The **Modeller** is a process that maintains a "model" in response to user input. 
+  The data in this model is typically what the user cares about. It does not include
+  any presentation related information.
+
+      modeller : Automaton input model
+
+- The **Director** is a process that provides an indication of the stable state of
+  the view in response to input and the updated model. The director does not worry
+  about the details of how this stable state of the UI is going to be achieved.
+
+      director : Automaton (input, model) direction
+
+- The **Animator** is a process that takes the indications of the director and worries
+  about how to reach the indicated stable state. Its output is detailed instructions for
+  "what should be shown right now".
+
+      animator : Animation direction viewstate
+
+- The **Viewer** takes the instantaneous instructions of the animator and shows the UI.
+  This can usually be a pure function that computes a `Html`.
+
+      viewer : Automaton (model, viewstate) output
+
+# Auxiliary concepts
+
+## Animation
+
+An animation is thought of as a process that takes an input value valid for a
+small time interval and produces a corresponding output value for the same time
+interval.
+
+    type alias Animation input output = Automaton (TimeStep, input) (TimeStep, output)
+
+## Particle
+
+Physics based animations are built around the notion of a "particle", which is seen
+as a process that responds to a number of forces by updating its position in a 
+"phase space" consisting of the pair `(position, momentum)`.
+
+    type alias Particle space = Animation (List (Force space)) (PhasePos space)
+    type alias PhasePos space = (space, space)
+    type Force space
+            = Drag space                -- Drag positionVector
+            | SomeForce space           -- SomeForce forceVector
+            | Kick space                -- Kick impulseVector
+            | Wall space Float space    -- Wall normalVector coeffOfRestitution pointOnWall
+            | Buff space space          -- a wall where coeffOfRestitution is zero
+            | Friction Float Float      -- Friction restSpeed fricCoeff
+            | Spring space Float Float  -- Spring anchorPoint hookeConstant dampingFactor
+            | Gravity space             -- Gravity gvector
+
+## Space
+
+Animation applies to continuous values, typically and we need to be able to do some
+common operations on these values such as linear interpolation, value following, 
+dynamics and such. The values can be one, two or three dimensional, or can be colour.
+
+To capture this variety of what can be animated, the module `Space` introduces
+the abstract notion of a continuous space of points that we move smoothly though.
+The other animation concepts rely on this abstraction.
+
 
 [Elm]: http://elm-lang.org
 [virtual-dom]: https://github.com/evancz/virtual-dom
