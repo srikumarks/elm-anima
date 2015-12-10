@@ -15,13 +15,13 @@ versions of these examples are also available in the `examples/build/' folder.
 
 **Status**: Work in progress
 
-# Examples
+## Examples
 
 1. [Red box](https://github.com/srikumarks/elm-anima/blob/master/examples/redbox.elm)
 2. [Photo viewer](https://github.com/srikumarks/elm-anima/blob/master/examples/photos.elm)
 3. [Red box, but using physics](https://github.com/srikumarks/elm-anima/blob/master/examples/redbox_physics.elm)
 
-# Key idea
+## Key idea
 
 The framework treats an "app" as a wiring up of four processes - a "modeller", "director",
 "animator" and "viewer".
@@ -30,36 +30,36 @@ The framework treats an "app" as a wiring up of four processes - a "modeller", "
   The data in this model is typically what the user cares about. It does not include
   any presentation related information.
 
-      ```elm
-      modeller : Automaton input model
-      ```
+  ```elm
+  modeller : Automaton input model
+  ```
 
 - The **Director** is a process that provides an indication of the stable state of
   the view in response to input and the updated model. The director does not worry
   about the details of how this stable state of the UI is going to be achieved.
 
-      ```elm
-      director : Automaton (input, model) direction
-      ```
+  ```elm
+  director : Automaton (input, model) direction
+  ```
 
 - The **Animator** is a process that takes the indications of the director and worries
   about how to reach the indicated stable state. Its output is detailed instructions for
   "what should be shown right now".
 
-      ```elm
-      animator : Animation direction viewstate
-      ```
+  ```elm
+  animator : Animation direction viewstate
+  ```
 
 - The **Viewer** takes the instantaneous instructions of the animator and shows the UI.
   This can usually be a pure function that computes a `Html`.
 
-      ```elm
-      viewer : Automaton (model, viewstate) output
-      ```
+  ```elm
+  viewer : Automaton (model, viewstate) output
+  ```
 
-# Auxiliary concepts
+## Auxiliary concepts
 
-## Animation
+### Animation
 
 An animation is thought of as a process that takes an input value valid for a
 small time interval and produces a corresponding output value for the same time
@@ -69,7 +69,7 @@ interval.
 type alias Animation input output = Automaton (TimeStep, input) (TimeStep, output)
 ```
 
-## Particle
+### Particle
 
 Physics based animations are built around the notion of a "particle", which is seen
 as a process that responds to a number of forces by updating its position in a 
@@ -89,7 +89,7 @@ type Force space
         | Gravity space             -- Gravity gvector
 ```
 
-## Space
+### Space
 
 Animation applies to continuous values, typically and we need to be able to do some
 common operations on these values such as linear interpolation, value following, 
