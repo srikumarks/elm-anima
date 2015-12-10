@@ -17,7 +17,12 @@ import Space exposing (..)
 
 {- A simple application that shows a red box that can be in one of two
 positions within the window. Clicking within the window causes the
-box to jump to the other position using a springy animation. -}
+box to jump to the other position using a springy animation. 
+
+Note: This is nearly exactly the same as the redbox.elm example.
+The only difference is that the animator is defined using physics
+instead of filters to get a similar effect. The code for all the
+other aspects is exactly the same as the redbox.elm example. -}
 
 {- Our only input is a click within the box to switch its position. -}
 type Input = Quiet | Click
