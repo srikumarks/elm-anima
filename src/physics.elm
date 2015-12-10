@@ -126,7 +126,7 @@ friction s rest munorm dt obj =
 -- end attached to the particle.                                                       
 spring : Space s -> s -> Float -> Float -> TimeStep -> ParticleState s -> ParticleState s
 spring s x0 k damp dt obj =
-    force s (s.lsum k (s.sub obj.x x0) (negate damp / obj.mass) obj.px) dt obj
+    force s (s.lsum k (s.sub x0 obj.x) (negate damp / obj.mass) obj.px) dt obj
 
 -- Models a uniform gravitational field.
 gravity : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s
