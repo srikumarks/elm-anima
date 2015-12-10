@@ -30,21 +30,24 @@ type Input = Quiet | Click | Next | Prev
 {- We display one photo at a time. currentPhoto indicates which photo as well
 as how we got to it. The actual photo index is obtained by taking modulo
 numberOfPhotos. -}
-type alias Model = {photoURLs : Array String, currentPhoto : Int}
+type alias Model = { photoURLs : Array String, currentPhoto : Int }
 
 {- Each photo is shown for a certain range of angles. The mapping from angles
-to the photo to be shown is given by angleToPhotoIndex.  The angle is the
-stable angle at which the currentPhoto as indicated by the model should be
-shown. The resultant photo index is not to be taken modulo the number of
-photos, so the angleToPhotoIndex function provides both the photo index as
-well as the modulus. -}
+to the photo to be shown is given by `angleToPhotoIndex`.  The `angle` is the
+stable angle at which the `currentPhoto` as indicated by the model should be
+shown. The photo index provided by the `angleToPhotoIndex` function is to be
+interpreted modulo the number of photos, so this record holds this modulus as
+well. -}
 type alias Direction = { angle : Float, numPhotos : Int, angleToPhotoIndex : Float -> Int }
 
-{- The view state is essentially the same structure as the direction, but the
-meaning of angle is different. This angle is a dynamic value and the photo
-associated with the angle can change with the angle.  To lookup the photo url,
-you need to take modulo number of photos. -}
-type alias ViewState = {angle : Float, photoIndex : Int, flip : Bool}
+{- The view state can often be the same structure as the direction, but in this
+case, it is a little different, as the viewer needs to know which photo to display
+and how to display it. Which photo is given by `photoIndex` and the "how" part is
+jointly indicated by `angle` and `flip`. While `angle` looks like the same value 
+in the direction, this is the *instantaneous* angle, as opposed to the stable angle
+indicated in the direction. `flip` tells the viewer whether the image is to be flipped
+horizontally. -}
+type alias ViewState = { angle : Float, photoIndex : Int, flip : Bool }
 
 clicks = Signal.mailbox Quiet
 
