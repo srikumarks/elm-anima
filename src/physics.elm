@@ -1,4 +1,4 @@
-module Physics (PhasePos, Particle, Force(..), particle) where 
+module Physics (PhasePos, Particle, Force(..), particle, position, momentum, bind) where 
 
 
 {-| A simple implementation of Newtonian physics. 
@@ -15,10 +15,18 @@ the momentum will have as many dimensions.
 
 import Space exposing (..)
 import GenAnim exposing (Animation, TimeStep, AnimUpdater, animateWith)
+import Focus
+import Automaton as Auto
 
 -- Phase space position is a pair where the first part is "position" and the
 -- second part is "momentum".                                        
 type alias PhasePos space = (space, space)
+
+position : PhasePos space -> space
+position (x, _) = x
+
+momentum : PhasePos space -> space
+momentum (_, px) = px
 
 -- The internal state of a "particle" includes its phase space coordinates, its
 -- mass and an as-yet-unprocessed momentum update "dpx". The intention is for the
@@ -50,6 +58,16 @@ type alias Particle space = Animation (List (Force space)) (PhasePos space)
 -- Create a "particle". This is the only exported function.
 particle : Space s -> Float -> s -> s -> Particle s
 particle s mass x vx = animateWith {mass = mass, x = x, px = s.scale mass vx, dpx = s.zero} (applyForces s)
+
+-- bind helps with associating a display property stored in a record with a
+-- the physics of a particle. The position of the particle is mapped
+-- to the record field, to produce an animation of the record.
+bind : Space s -> Particle s -> Focus.Focus rec s -> (rec -> List (Force s)) -> Animation rec rec
+bind s p focus forces =
+    animateWith p
+        (\(dt,rec) p ->
+            let (p2, (_,(px2,_))) = Auto.step (dt, forces rec) p
+            in ((dt, Focus.set focus px2 rec), p2))
 
 -- An updater function that applies a list of forces on a particle to produce
 -- its final phase position.
