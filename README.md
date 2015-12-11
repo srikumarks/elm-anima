@@ -94,13 +94,16 @@ type Force space
 
 ### Space
 
-Animation applies to continuous values, typically and we need to be able to do some
-common operations on these values such as linear interpolation, value following, 
-dynamics and such. The values can be one, two or three dimensional, or can be colour.
+Animations apply to continuous values, although there are generalizations to
+discrete values too. We need to be able to do some common calculations on these
+values such as linear interpolation, find distances and apply dynamics. The
+values can be one, two or three dimensional, or can be colour. The mathematical
+notion of a vector space is useful in this regard. 
 
-To capture this variety of what can be animated, the module `Space` introduces
-the abstract notion of a continuous space of points that we move smoothly though.
-The other animation concepts rely on this abstraction.
+To capture this variety of what can be animated and the nature of the
+calculations that animations entail, the module `Space` introduces the abstract
+notion of a continuous space of points that we move smoothly though.  The other
+animation concepts rely on this abstraction.
 
 
 [Elm]: http://elm-lang.org
