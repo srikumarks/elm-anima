@@ -20,9 +20,16 @@ folder.
 
 ## Examples
 
-1. [Red box](https://github.com/srikumarks/elm-anima/blob/master/examples/redbox.elm)
-2. [Photo viewer](https://github.com/srikumarks/elm-anima/blob/master/examples/photos.elm)
-3. [Red box, but using physics](https://github.com/srikumarks/elm-anima/blob/master/examples/redbox_physics.elm)
+1. [Red box][redbox_view] ([source][redbox_source])
+2. [Photo viewer][photo_view] ([source][photo_source])
+3. [Red box, but using physics][redbox_physics_view] ([source][redbox_physics_source])
+
+[redbox_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/redbox.html
+[redbox_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/redbox.elm
+[photo_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/photos.html
+[photo_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/photos.elm
+[redbox_physics_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/redbox_physics.html
+[redbox_physics_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/redbox_physics.elm
 
 ## Key idea
 
