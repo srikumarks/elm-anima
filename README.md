@@ -14,7 +14,10 @@ For starters, look at the examples in the
 [examples/](https://github.com/srikumarks/elm-anima/tree/master/examples)
 folder. Pre-compiled versions of these examples are also available in the
 [examples/build/](https://github.com/srikumarks/elm-anima/tree/master/examples/build)
-folder.
+folder. 
+
+Some notes on the approach and motivation are also available in
+[this blog post](http://sriku.org/blog/2015/12/13/towards-reactive-animation-in-elm/).
 
 **Status**: Work in progress
 
