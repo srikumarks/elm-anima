@@ -92,7 +92,7 @@ as a process that responds to a number of forces by updating its position in a
 type alias Particle space = Animation (List (Force space)) (PhasePos space)
 type alias PhasePos space = (space, space)
 type Force space
-        = Drag space                -- Drag positionVector
+        = Drag space                -- Drag positionVectorChange
         | SomeForce space           -- SomeForce forceVector
         | Kick space                -- Kick impulseVector
         | Wall space Float space    -- Wall normalVector coeffOfRestitution pointOnWall

@@ -83,7 +83,7 @@ applyForces s (dt, forces) p =
 applyForce : Space s -> TimeStep -> Force s -> ParticleState s -> ParticleState s
 applyForce s dt f p =
     case f of
-        Drag x                  -> drag s x dt p
+        Drag dx                 -> drag s dx dt p
         SomeForce f             -> force s f dt p
         Kick dpx                -> {p | dpx = s.add dpx p.dpx}
         Wall dir e x            -> wall s dir e x dt p
@@ -110,10 +110,16 @@ move s dt p =
 -- Another way to do this would be to attach a high tension spring to
 -- the particle and set the spring's end point to the desired drag
 -- position.
+--
+-- Originally, Drag was specified as the point to which the particle
+-- must be attached. This is not desirable in general since which part
+-- of the particle the position refers to is unclear. If we instead
+-- specify the change in the particle's position, then the dragging
+-- action becomes independent of where the particle has been "grabbed".
 drag : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s
-drag s x dt p =
-    { p | x = x,
-          px = s.scale (p.mass/dt) (s.sub x p.x),
+drag s dx dt p =
+    { p | x = s.add p.x dx,
+          px = s.scale (p.mass/dt) dx,
           dpx = s.zero }
 
 -- Models a steady force applied over the given time step.
