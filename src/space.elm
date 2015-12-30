@@ -1,5 +1,6 @@
 module Space 
     ( Space, 
+      Point1D, Point2D, Point3D, PointColor, 
       Space1D, Space2D, Space3D, SpaceColor, 
       f1d, f2d, f3d, fcolor
     ) where
