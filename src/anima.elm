@@ -10,6 +10,7 @@ import Color
 import Debug exposing (..)
 import Time
 import Window
+import Mouse
 
 type alias TimeStep = GA.TimeStep
 type alias Space space = Space.Space space
@@ -98,21 +99,26 @@ type alias App input model direction viewstate output =
         }
     }
 
-type CommonEvent = TimeStep Float | ResizeWindow Int Int
+type CommonEvent = TimeStep Float | ResizeWindow Int Int | MousePos Int Int
 type Event a = EnvEvent CommonEvent | UserEvent a
 
-type alias Env = {dt : TimeStep, time : Float, width: Int, height: Int}
+type alias Env = {dt : TimeStep, time : Float, width: Int, height: Int, mouseX : Int, mouseY : Int}
 type alias WithEnv base = {env: Env, data: base}
 
 env0 : a -> WithEnv a
-env0 a = {data = a, env = {dt = 0.0, time = 0.0, width = 640, height = 480}}
+env0 a = {data = a, env = {dt = 0.0, time = 0.0, width = 640, height = 480, mouseX = 320, mouseY = 240}}
 
 withWindowSize : Int -> Int -> WithEnv a -> WithEnv a
 withWindowSize w h rec = let env = rec.env 
                          in {rec | env = {env | width = w, height = h}}
 
+withTimeStep : Float -> WithEnv a -> WithEnv a
 withTimeStep dt rec = let env = rec.env
-                 in {rec | env = {env | dt = dt, time = env.time + dt}}
+                      in {rec | env = {env | dt = dt, time = env.time + dt}}
+
+withMousePos : Int -> Int -> WithEnv a -> WithEnv a
+withMousePos x y rec = let env = rec.env
+                       in {rec | env = {env | mouseX = x, mouseY = y}}
                     
 timeStep : Event a -> Maybe TimeStep
 timeStep e = case e of
@@ -123,10 +129,8 @@ animationNeeded = Signal.constant True
 frames = Time.fpsWhen 60 animationNeeded
 windowResizeEvents = Signal.map (\(w,h) -> EnvEvent (ResizeWindow w h)) Window.dimensions
 timeStepEvents = Signal.map (\dt -> EnvEvent (TimeStep (Time.inSeconds dt))) frames
+mousePositionEvents = Signal.map (\(x,y) -> EnvEvent (MousePos x y)) Mouse.position
 
-env : Signal Env
-env = Signal.map2 (\(w,h) dt -> {dt = Time.inSeconds dt, time = 0.0, width = w, height = h}) Window.dimensions frames
-            
 type alias OpinionatedApp input model direction viewstate output =
     { modeller : input -> model -> model
     , director : (input, model) -> (WithEnv direction) -> (WithEnv direction)
@@ -150,13 +154,14 @@ convertModeller modeller =
 convertDirector : 
     ((input,model) -> WithEnv director -> WithEnv director) 
     -> ((Event input, model) -> WithEnv director -> (WithEnv director, WithEnv director))
-convertDirector director =
-    \(input,model) dir -> 
+convertDirector director =  \(input,model) dir -> 
         let dir1 = case input of
                         EnvEvent (ResizeWindow w h) ->
                             withWindowSize w h dir
                         EnvEvent (TimeStep dt) ->
                             withTimeStep dt dir
+                        EnvEvent (MousePos x y) ->
+                            withMousePos x y dir
                         _ ->
                             dir
             dir2 = case input of
@@ -168,7 +173,7 @@ convertDirector director =
            (dir2,dir2)
 
 mergeEnvironmentChanges : Signal input -> Signal (Event input)
-mergeEnvironmentChanges sig = Signal.mergeMany [windowResizeEvents, timeStepEvents, Signal.map UserEvent sig]
+mergeEnvironmentChanges sig = Signal.mergeMany [windowResizeEvents, timeStepEvents, mousePositionEvents, Signal.map UserEvent sig]
 
 appify : OpinionatedApp input model direction viewstate output 
             -> App (Event input) model (WithEnv direction) (WithEnv viewstate) output
