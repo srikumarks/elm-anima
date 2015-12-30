@@ -34,12 +34,13 @@ lerp space = space.lerp
 lpf1 : Space a -> Float -> GA.AnimUpdater (GA.TimeStep,a,a) a a
 lpf1 space factor (dtn, xn) (dt0, xn0, yn1) =
     let
-        dt = min intervalLimit (dt0 + dtn)
-        x = if dt >= samplingInterval then space.lerp (dtn/dt) xn0 xn else xn0
+        dtsum = dt0 + dtn
+        dt = min intervalLimit dtsum
+        x = if dt >= samplingInterval then space.lerp (dtn/dtsum) xn0 xn else xn0
     in
        if dt >= samplingInterval
           then let yn = space.lerp factor yn1 x
-               in lpf1 space factor (dt, yn) (dt - samplingInterval, x, yn)
+               in lpf1 space factor (0.0, yn) (dt - samplingInterval, x, yn)
           else ((dt,yn1), (dt, x, yn1))
 
 
