@@ -27,12 +27,49 @@ Some notes on the approach and motivation are also available in
 2. [Photo viewer][photo_view] ([source][photo_source])
 3. [Red box, but using physics][redbox_physics_view] ([source][redbox_physics_source])
 
+A more sophisticated series of examples demonstrating progressive
+addition of animation and behaviour to an application while keeping
+the core application model unmodified --
+
+4. [veggies1.elm][veggies1_view] ([source][veggies1_source])
+   Presents the core interface which has two lists of labels - "fruits" and
+   "veggies". Click on a label to move it to the other list. The idea is to
+   sort the two lists to have the fruits correctly under the fruits list
+   and the veggies under the veggies list. The program doesn't verify that
+   you've actually done so, but just lets you play around.
+
+5. [veggies2.elm][veggies2_view] ([source][veggies2_source])
+   Functionally exactly the same as the previous one, but prepares for more
+   sophisticated animation by moving the layout functionality into the 
+   "director" mechanism.
+
+6. [veggies3.elm][veggies3_view] ([source][veggies3_source])
+   Functionally the same as the previous - i.e. you move labels from one list
+   to the other by clicking on them. However, the movement is now smoothly
+   animated. You can click as fast as you want and even on elements in flight,
+   if you're that fast. In other words, these are retargetable animations.
+
+7. [veggies4.elm][veggies4_view] ([source][veggies4_source])
+   A bit more richer functionality where you can reorder within a list or
+   across lists by dragging and dropping labels. Once dropped, the items all
+   animated into their new positions smoothly. Also, you get indicators showing
+   what's been picked up and where it will be dropped if you let go of the
+   mouse picker.
+
 [redbox_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/redbox.html
 [redbox_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/redbox.elm
 [photo_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/photos.html
 [photo_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/photos.elm
 [redbox_physics_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/redbox_physics.html
 [redbox_physics_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/redbox_physics.elm
+[veggies1_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/veggies1.html
+[veggies2_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/veggies2.html
+[veggies3_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/veggies3.html
+[veggies4_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/veggies4.html
+[veggies1_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies1.elm
+[veggies2_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies2.elm
+[veggies3_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies3.elm
+[veggies4_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies4.elm
 
 ## Key idea
 
