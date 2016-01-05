@@ -23,33 +23,33 @@ Some notes on the approach and motivation are also available in
 
 ## Examples
 
-1. [Red box][redbox_view] ([source][redbox_source])
-2. [Photo viewer][photo_view] ([source][photo_source])
-3. [Red box, but using physics][redbox_physics_view] ([source][redbox_physics_source])
+1. [Red box][redbox_view] ([.elm][redbox_source])
+2. [Photo viewer][photo_view] ([.elm][photo_source])
+3. [Red box, but using physics][redbox_physics_view] ([.elm][redbox_physics_source])
 
 A more sophisticated series of examples demonstrating progressive
 addition of animation and behaviour to an application while keeping
 the core application model unmodified --
 
-4. [veggies1.elm][veggies1_view] ([source][veggies1_source])
+4. [veggies1][veggies1_view] ([.elm][veggies1_source])
    Presents the core interface which has two lists of labels - "fruits" and
    "veggies". Click on a label to move it to the other list. The idea is to
    sort the two lists to have the fruits correctly under the fruits list
    and the veggies under the veggies list. The program doesn't verify that
    you've actually done so, but just lets you play around.
 
-5. [veggies2.elm][veggies2_view] ([source][veggies2_source])
+5. [veggies2][veggies2_view] ([.elm][veggies2_source])
    Functionally exactly the same as the previous one, but prepares for more
    sophisticated animation by moving the layout functionality into the 
    "director" mechanism.
 
-6. [veggies3.elm][veggies3_view] ([source][veggies3_source])
+6. [veggies3][veggies3_view] ([.elm][veggies3_source])
    Functionally the same as the previous - i.e. you move labels from one list
    to the other by clicking on them. However, the movement is now smoothly
    animated. You can click as fast as you want and even on elements in flight,
    if you're that fast. In other words, these are retargetable animations.
 
-7. [veggies4.elm][veggies4_view] ([source][veggies4_source])
+7. [veggies4][veggies4_view] ([.elm][veggies4_source])
    A bit more richer functionality where you can reorder within a list or
    across lists by dragging and dropping labels. Once dropped, the items all
    animated into their new positions smoothly. Also, you get indicators showing
