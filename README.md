@@ -139,6 +139,27 @@ type Force space
         | Gravity space             -- Gravity gvector
 ```
 
+### Picker
+
+The `picker` is an automaton that tracks drag and drop operations in a way
+that its output can be used directly by the physics module's notion of
+"particles". It works on a collection of particles where each particle is
+addressed using a string key. It will direct a "drag" force at the selected
+particle based on "pickup", "move" and "drop" events.
+
+```elm
+type PickerAction = PickupItem String | MoveItem | DropItem
+type alias Picker space = Animation (space, Maybe PickerAction) (Maybe (String, space), Maybe PickerAction)
+picker : Picker Point2D
+```
+
+You can use the picker in conjunction with the `applyPicker` function to
+attach the picker to a particle collection and respond to the events it
+generates. You can use the `particleColl` function to make such a collection.
+
+**Note**: The "particle collection" concept uses a `Dict`, which I think is not
+the most efficiently implemented, but will probably suffice for these experiments.
+
 ### Space
 
 Animations apply to continuous values, although there are generalizations to
