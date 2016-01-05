@@ -84,4 +84,4 @@ app = {
 
     }
 
-main = Anima.runOpinionatedApp app input
+main = let (app', _) = Anima.runOpinionatedApp app input in app'

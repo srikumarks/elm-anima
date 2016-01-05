@@ -1,4 +1,4 @@
-module RedBox where
+module RedBoxPhysics where
 
 import Anima exposing (..)
 import Graphics.Element as El
@@ -46,8 +46,8 @@ input = clicks.signal
 
 initial = 
     { model     = { boxIsToTheLeft = False }
-    , direction = { color = Color.red, x = 256.0 }
-    , viewstate = { color = Color.red, x = 256.0 }
+    , direction = { color = Color.blue, x = 256.0 }
+    , viewstate = { color = Color.blue, x = 256.0 }
     , view      = El.show "initializing..."
     }
 
@@ -92,4 +92,4 @@ app = {
 
     }
 
-main = Anima.runOpinionatedApp app input
+main = let (app', _) = Anima.runOpinionatedApp app input in app'

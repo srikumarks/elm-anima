@@ -17,6 +17,7 @@ import Space exposing (..)
 import GenAnim exposing (Animation, TimeStep, AnimUpdater, animateWith)
 import Focus
 import Automaton as Auto
+import Debug
 
 -- Phase space position is a pair where the first part is "position" and the
 -- second part is "momentum".                                        
@@ -118,8 +119,7 @@ move s dt p =
 -- action becomes independent of where the particle has been "grabbed".
 drag : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s
 drag s dx dt p =
-    { p | x = s.add p.x dx,
-          px = s.scale (p.mass/dt) dx,
+    { p | px = s.scale (p.mass/dt) dx,
           dpx = s.zero }
 
 -- Models a steady force applied over the given time step.

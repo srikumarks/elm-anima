@@ -11,6 +11,8 @@ import Debug exposing (..)
 import Time
 import Window
 import Mouse
+import Dict exposing (Dict)
+import Task
 
 type alias TimeStep = GA.TimeStep
 type alias Space space = Space.Space space
@@ -88,25 +90,25 @@ particle2D = Physics.particle f2d
 
 type alias App input model direction viewstate output =
     { modeller : Auto.Automaton input model
-    , director : Auto.Automaton (input, model) direction
-    , animator : Animation direction viewstate
-    , viewer : Auto.Automaton (model, viewstate) output
+    , director : Auto.Automaton (input, model) (WithEnv direction)
+    , animator : Animation (WithEnv direction) (WithEnv viewstate)
+    , viewer : Auto.Automaton (model, WithEnv viewstate) output
     , timeStep : input -> Maybe TimeStep
     , initial :
         { model : model
         , view  : output
-        , viewstate : viewstate
+        , viewstate : WithEnv viewstate
         }
     }
 
 type CommonEvent = TimeStep Float | ResizeWindow Int Int | MousePos Int Int
 type Event a = EnvEvent CommonEvent | UserEvent a
 
-type alias Env = {dt : TimeStep, time : Float, width: Int, height: Int, mouseX : Int, mouseY : Int}
-type alias WithEnv base = {env: Env, data: base}
+type alias Env = { dt : TimeStep, time : Float, width: Int, height: Int, mousePos : Point2D, tasks : List (Task.Task () ())}
+type alias WithEnv base = { env : Env, data : base }
 
 env0 : a -> WithEnv a
-env0 a = {data = a, env = {dt = 0.0, time = 0.0, width = 640, height = 480, mouseX = 320, mouseY = 240}}
+env0 a = {data = a, env = {dt = 0.0, time = 0.0, width = 640, height = 480, mousePos = (320,240), tasks = []}}
 
 withWindowSize : Int -> Int -> WithEnv a -> WithEnv a
 withWindowSize w h rec = let env = rec.env 
@@ -116,9 +118,9 @@ withTimeStep : Float -> WithEnv a -> WithEnv a
 withTimeStep dt rec = let env = rec.env
                       in {rec | env = {env | dt = dt, time = env.time + dt}}
 
-withMousePos : Int -> Int -> WithEnv a -> WithEnv a
-withMousePos x y rec = let env = rec.env
-                       in {rec | env = {env | mouseX = x, mouseY = y}}
+withMousePos : Point2D -> WithEnv a -> WithEnv a
+withMousePos pos rec = let env = rec.env
+                       in {rec | env = {env | mousePos = pos}}
                     
 timeStep : Event a -> Maybe TimeStep
 timeStep e = case e of
@@ -155,28 +157,34 @@ convertDirector :
     ((input,model) -> WithEnv director -> WithEnv director) 
     -> ((Event input, model) -> WithEnv director -> (WithEnv director, WithEnv director))
 convertDirector director =  \(input,model) dir -> 
-        let dir1 = case input of
+        let dir0 = dir
+            dir1 = case input of
                         EnvEvent (ResizeWindow w h) ->
-                            withWindowSize w h dir
+                            withWindowSize w h dir0
                         EnvEvent (TimeStep dt) ->
-                            withTimeStep dt dir
+                            withTimeStep dt dir0
                         EnvEvent (MousePos x y) ->
-                            withMousePos x y dir
+                            withMousePos (toFloat x, toFloat y) dir0
                         _ ->
-                            dir
+                            dir0
             dir2 = case input of
                         UserEvent ue ->
                             director (ue,model) dir1
                         _ ->
                             dir1
         in
-           (dir2,dir2)
+           (dir2, dir2)
 
 mergeEnvironmentChanges : Signal input -> Signal (Event input)
-mergeEnvironmentChanges sig = Signal.mergeMany [windowResizeEvents, timeStepEvents, mousePositionEvents, Signal.map UserEvent sig]
+mergeEnvironmentChanges sig = Signal.mergeMany 
+                                [ windowResizeEvents
+                                , timeStepEvents
+                                , mousePositionEvents
+                                , Signal.map UserEvent sig
+                                ]
 
 appify : OpinionatedApp input model direction viewstate output 
-            -> App (Event input) model (WithEnv direction) (WithEnv viewstate) output
+            -> App (Event input) model direction viewstate output
 appify app =
     { modeller = procWithUpdater (convertModeller app.modeller) app.initial.model
     , director = animateWith (env0 app.initial.direction) (convertDirector app.director)
@@ -189,17 +197,32 @@ appify app =
                 }
     }
 
-runApp : App (Event input) model direction viewstate output -> Signal input -> Signal output
+runApp : App (Event input) model direction viewstate output 
+            -> Signal input 
+            -> (Signal output, Signal (Task.Task () ()))
 runApp app userInput =
-    let
-        input = mergeEnvironmentChanges userInput
-        modelSig = Auto.run app.modeller app.initial.model input
-        viewStateSig = Auto.run (controllerProc app.timeStep app.director (app.animator |> dropTimeStep) app.initial.viewstate) app.initial.viewstate (Signal.map2 (,) input modelSig)
-        viewSig = Auto.run app.viewer app.initial.view (Signal.map2 (,) modelSig viewStateSig)
+    let input = mergeEnvironmentChanges userInput
+        controllerr = controllerProc app.timeStep app.director (app.animator |> dropTimeStep) app.initial.viewstate
+        combined = Auto.hiddenState (app, controllerr)
+                        (\input (app, controller) ->
+                            let (modeller', model) = Auto.step input app.modeller
+                                (controller', viewstate) = Auto.step (input, model) controller
+                                (viewer', view) = Auto.step (model, viewstate) app.viewer
+                            in
+                               ((view, viewstate.env.tasks), ({ app | modeller = modeller', viewer = viewer' }, controller')))
+        viewAndTasksSig = Auto.run combined (app.initial.view, []) input
     in
-       viewSig
+       ( viewAndTasksSig |> Signal.map (\(a,_) -> a)
+       , viewAndTasksSig |> Signal.map (\(_,a) -> a)
+                         |> Signal.filterMap (\tasks -> if List.length tasks > 0 then
+                                                        Just (Task.sequence tasks `Task.andThen` (\x -> Task.succeed ()))
+                                                     else
+                                                        Nothing)
+                                        (Task.succeed ()))
 
-runOpinionatedApp : OpinionatedApp input model direction viewstate output -> Signal input -> Signal output
+runOpinionatedApp : OpinionatedApp input model direction viewstate output 
+                        -> Signal input 
+                        -> (Signal output, Signal (Task.Task () ()))
 runOpinionatedApp app userInput =
     runApp (appify app) userInput
 
@@ -213,24 +236,26 @@ procWithUpdater updater initialModel =
               (m2,m2))
 
 controllerProc : (input -> Maybe TimeStep)
-                    -> Auto.Automaton (input, model) direction
-                    -> Auto.Automaton (TimeStep, direction) viewstate
-                    -> viewstate
-                    -> Auto.Automaton (input, model) viewstate
+                    -> Auto.Automaton (input, model) (WithEnv direction)
+                    -> Auto.Automaton (TimeStep, (WithEnv direction)) (WithEnv viewstate)
+                    -> (WithEnv viewstate)
+                    -> Auto.Automaton (input, model) (WithEnv viewstate)
 controllerProc timeStep director animator vs0 =
     animateWith (director, animator, vs0)
         (\(input,model) (director, animator, vs) ->
-            let (director2,dir) = Auto.step (input,model) director
+            let (director2, dir) = Auto.step (input, model) director
             in
                case timeStep input of
                    Just dt ->
-                       let (animator2,vs2) = Auto.step (dt,dir) animator
-                       in (vs2,(director2,animator2,vs2))
+                       let (animator2, vs2) = Auto.step (dt, dir) animator
+                       in (vs2, (director2, animator2, clearTasks vs2))
                    Nothing ->
-                       (vs,(director2,animator,vs)))
+                       (vs, (director2, animator, clearTasks vs)))
 
-
-
+clearTasks : WithEnv a -> WithEnv a
+clearTasks dir = let env = dir.env
+                 in { dir | env = { env | tasks = [] } }
+                    
 -- helpers
 
 -- Make a pure animation record transformer

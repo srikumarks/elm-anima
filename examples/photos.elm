@@ -125,7 +125,7 @@ app = {
         initial
     }
 
-main = Anima.runOpinionatedApp app input
+main = let (app', _) = Anima.runOpinionatedApp app input in app'
 
 -- Puts some content within a black box of given dimensions.
 box width height contents = 
