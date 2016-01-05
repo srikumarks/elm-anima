@@ -321,3 +321,146 @@ animateRec recOut anims =
     in
        inFilter >>> List.foldl (>>>) outFilter anims
 
+
+{-| Drag-and-drop helper. The picker automaton tracks pickup/drop actions and 
+outputs a force to be applied to a particle being dragged, if one is being
+dragged. It doesn't make any assumptions about what to do upon these actions,
+but only concerns itself with directing the object being dragged.
+
+The picker automaton is a singleton. It needs to be wired up to appropriate 
+input in order for it to function.
+-}
+type PickerAction = PickupItem String | MoveItem | DropItem
+type alias Picker space = Animation (space, Maybe PickerAction) (Maybe (String, space), Maybe PickerAction)
+picker : Picker Point2D
+picker = 
+    let automaton = Auto.hiddenState Nothing updater
+        noForce = f2d.zero
+        updater (dt, (pos, action)) state =
+            case action of
+                Just (PickupItem key) ->
+                    case state of
+                        Just _ -> 
+                            -- Already moving something. Ignore this pickup.
+                            updater (dt, (pos, Just MoveItem)) state
+                            
+                        Nothing -> 
+                            -- Start drag operation
+                            ((dt, (Just (key, noForce), Just (PickupItem key))), Just (key, pos))
+
+                Just MoveItem ->
+                    case state of
+                        Just (key, prevPos) -> 
+                            -- Valid drag state
+                            ((dt, (Just (key, f2d.sub pos prevPos), Just MoveItem)), Just (key, pos))
+
+                        Nothing -> 
+                            -- Invalid drag state. Ignore it.
+                            ((dt, (Nothing, Nothing)), Nothing)
+
+                Just DropItem ->
+                    ((dt, (Nothing, Just DropItem)), Nothing)
+
+                Nothing ->
+                    updater (dt, (pos, Just MoveItem)) state
+                    
+    in automaton
+
+
+-- When objects are identified by string keys, you can direct forces
+-- at them using this kind of dictionary.
+type alias DirectedForces space = Dict String (List (Force space))
+
+-- A particle collection is a system that takes directed forces
+-- and applies them to a collection of labelled particles.
+type alias ParticleColl space a = Animation (DirectedForces space) (Dict String a)
+
+{-| Makes a particle collection. 
+
+The "field" helps get and set the relevant space property.
+The "items" are the things constituting the particle system.
+The "particles" are the processes that capture the particle behaviour.
+
+The result is a "particle collection" on which you can direct
+forces to particles identified by string keys.
+
+-}
+particleColl : 
+    Focus.Focus a space
+    -> Dict String a
+    -> Dict String (Particle space) 
+    -> ParticleColl space a
+particleColl field items particles = 
+    Auto.hiddenState (items, particles)
+        (\(dt, directedForces) (items, particles) ->
+            let (pos', particles') = 
+                    Dict.foldl distributeForces (items, particles) directedForces
+                    
+                distributeForces key forces (items, particles) =
+                    let mp = Dict.get key particles
+                    in case mp of
+                        Just p ->
+                            let (p', (_, (pos', _))) = 
+                                    Auto.step (dt, forces) p
+
+                                nextItems = 
+                                    Dict.update key updatePos items
+
+                                updatePos mPrevPos =
+                                    case mPrevPos of
+                                        Just prevPos ->
+                                            Just (Focus.set field pos' prevPos)
+                                        Nothing ->
+                                            Nothing
+                            in 
+                               (nextItems, Dict.insert key p' particles)
+
+                        Nothing ->
+                            (items, particles)
+            in 
+               ((dt, pos'), (pos', particles')))
+
+              
+{-| Makes an animation that animates a collection of particles
+that are part of the application. The picker is used to pick
+one particle of the given particle collection.
+
+The "picker" is the global picker, or you can make your own.
+"setItems" modifies the direction with the given information.
+"tracker" gives the position along with a possible picker action to act on.
+"forces" provides the forces on the system as computed from the direction.
+"particleColl" is the collection of particles from which you want
+the picker to be able to pick one.
+
+Note: The "setItems" and "tracker" functions could fit in some kind
+of a type class.
+
+The result is an animation of the "direction" structure that tracks
+the application of the picker, generating events along the way.
+-}
+applyPicker :
+    Picker Point2D
+    -> (Maybe PickerAction -> Dict String a -> dir -> dir)
+    -> (dir -> (Point2D, Maybe PickerAction))
+    -> Animation dir (DirectedForces Point2D)
+    -> ParticleColl Point2D a
+    -> Animation dir dir
+applyPicker picker setItems tracker forces particleColl =
+    let automaton = Auto.hiddenState (picker, forces, particleColl) update
+        update (dt, dir) (picker, forces, particleColl) =
+            let (picker', (_, (mDelta, pickerAction))) = Auto.step (dt, tracker dir) picker
+                (forces', (_, dirForces)) = Auto.step (dt, dir) forces
+                dirForces' = case mDelta of
+                    Just (key, delta) ->
+                        Dict.update key (\v -> case v of
+                                                Just f -> Just (f ++ [Drag delta])
+                                                Nothing -> Nothing)
+                                dirForces
+                    Nothing ->
+                        dirForces
+                (particleColl', (_, result)) = Auto.step (dt, dirForces') particleColl
+            in
+               ((dt, setItems pickerAction result dir), (picker', forces', particleColl'))
+    in
+       automaton
+            
