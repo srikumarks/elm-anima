@@ -157,7 +157,13 @@ You can use the picker in conjunction with the `applyPicker` function to
 attach the picker to a particle collection and respond to the events it
 generates. You can use the `particleColl` function to make such a collection.
 
-**Note**: The "particle collection" concept uses a `Dict`, which I think is not
+**PPS**: Drag-n-Drop using these concepts does not use the HTML drag events.
+Instead, it works directly with the mouse events. For the moment, I think this
+is better than the HTML drag events since we're not limited to dragging only
+one thing at a time ... though I'm yet to build a picker that supports
+multitouch.
+
+**PS**: The "particle collection" concept uses a `Dict`, which I think is not
 the most efficiently implemented, but will probably suffice for these experiments.
 
 ### Space
