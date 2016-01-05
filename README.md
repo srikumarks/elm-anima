@@ -19,7 +19,7 @@ folder.
 Some notes on the approach and motivation are also available in
 [this blog post](http://sriku.org/blog/2015/12/13/towards-reactive-animation-in-elm/).
 
-**Status**: Work in progress
+**Status**: Work in progress. Unoptimized. Use at your own risk.
 
 ## Examples
 
