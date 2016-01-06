@@ -195,21 +195,40 @@ director (input, model) dir =
         pickerAction    = case input of
                                 DnD x -> Just x
                                 _ -> Nothing
-        fruitLimit      = limit 0 (List.length model.fruits)
-        veggieLimit     = limit 0 (List.length model.veggies)
-        pickedItem      = case input of
+        (lenf, lenv)    = (List.length model.fruits, List.length model.veggies)
+        fruitLimit      = limit 0 lenf
+        veggieLimit     = limit 0 lenv
+        (pickedItem, pickedIx) = case input of
                                 DnD (PickupItem key) ->
-                                    Just key
+                                    (Just key, Just (findItem key model))
                                 DnD DropItem ->
-                                    Nothing
+                                    (Nothing, Nothing)
                                 _ ->
-                                    dir.data.pickedItem
+                                    (dir.data.pickedItem, case dir.data.pickedItem of
+                                                            Just key -> Just (findItem key model)
+                                                            Nothing -> Nothing)
         suggestor pos =
             let i = fruitIndex pos
             in if isNearFruits pos then
-                  Fruit (fruitLimit i)
+                  Fruit (ignoreNext pickedIx (Fruit i))
                else
-                  Veggie (veggieLimit i)
+                  Veggie (ignoreNext pickedIx (Veggie i))
+
+        -- If you're dragging an item i on the list, then it doesn't
+        -- make sense to let you drop it at i + 1 on the same list.
+        -- So exclude that possibility.
+        ignoreNext ix item =
+            case (ix,item) of
+                (Just (Fruit ix'), Fruit i) ->
+                    let i' = fruitLimit i
+                    in if ix' + 1 == i' then ix' else i'
+                (Just (Veggie ix'), Veggie i) ->
+                    let i' = veggieLimit i
+                    in if ix' + 1 == i' then ix' else i
+                (_, Fruit i) ->
+                    fruitLimit i
+                (_, Veggie i) ->
+                    veggieLimit i
                   
         finder key =
             findItem key model
