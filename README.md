@@ -26,6 +26,7 @@ Some notes on the approach and motivation are also available in
 1. [Red box][redbox_view] ([.elm][redbox_source])
 2. [Photo viewer][photo_view] ([.elm][photo_source])
 3. [Red box, but using physics][redbox_physics_view] ([.elm][redbox_physics_source])
+4. The famous [Example 8][e8_view] ([.elm][e8_source]) from [The Elm Architecture tutorial][eatut].
 
 A more sophisticated series of examples demonstrating progressive
 addition of animation and behaviour to an application while keeping
@@ -70,6 +71,9 @@ the core application model unmodified --
 [veggies2_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies2.elm
 [veggies3_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies3.elm
 [veggies4_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies4.elm
+[e8_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/example8.html
+[e8_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/example8.elm
+[eatut]: https://github.com/evancz/elm-architecture-tutorial/
 
 ## Key idea
 
