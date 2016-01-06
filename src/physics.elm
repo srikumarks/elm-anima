@@ -29,6 +29,9 @@ position (x, _) = x
 momentum : PhasePos space -> space
 momentum (_, px) = px
 
+samplingInterval = 1.0 / 60.0
+maxTimeGap = 10.0 * samplingInterval
+
 -- The internal state of a "particle" includes its phase space coordinates, its
 -- mass and an as-yet-unprocessed momentum update "dpx". The intention is for the
 -- physics calculations to first accumulate effects in "dpx" and then to one final
@@ -58,7 +61,7 @@ type alias Particle space = Animation (List (Force space)) (PhasePos space)
 
 -- Create a "particle". This is the only exported function.
 particle : Space s -> Float -> s -> s -> Particle s
-particle s mass x vx = animateWith {mass = mass, x = x, px = s.scale mass vx, dpx = s.zero} (applyForces s)
+particle s mass x vx = animateWith {mass = mass, x = x, px = s.scale mass vx, dpx = s.zero} (applyForces' 0 s)
 
 -- bind helps with associating a display property stored in a record with a
 -- the physics of a particle. The position of the particle is mapped
@@ -74,10 +77,30 @@ bind s p focus forces =
 -- its final phase position.
 applyForces : Space s -> AnimUpdater (ParticleState s) (List (Force s)) (PhasePos s)
 applyForces s (dt, forces) p =
-    let
-        p2 = List.foldl (applyForce s dt) p forces |> move s dt
-    in
-       ((dt,(p2.x, p2.px)), p2)
+    let p2 = List.foldl (applyForce s dt) p forces |> move s dt
+    in ((dt,(p2.x, p2.px)), p2)
+
+-- A wrapper to take care of large time gaps.
+-- We limit the time gaps so that when the user switches tabs
+-- and comes back, some major computation loop doesn't run,
+-- and yet physics appears to settle somewhat.
+applyForces' i s (dt, forces) p =
+    if dt > maxTimeGap then
+       applyForces' i s (maxTimeGap - samplingInterval, forces) p
+    else if dt > samplingInterval then
+            applyForces s (samplingInterval, forces) p
+                |> \((_,_),p) -> p
+                |> applyForces' (i+1) s (dt - samplingInterval, if i > 0 then forces else removeOnceOnlyForces forces)
+    else 
+        applyForces s (dt, forces) p
+        
+-- Drag and Kick should not be applied repeatedly.
+-- The rest are like constraints and can continue to apply.
+removeOnceOnlyForces =
+    List.filter (\f -> case f of
+                            Drag _ -> False
+                            Kick _ -> False
+                            _ -> True)
 
 -- applyForce accumulates the momentum change implied by the given force in the particle's
 -- "dpx" field.
@@ -92,7 +115,7 @@ applyForce s dt f p =
         Friction rest munorm    -> friction s rest munorm dt p
         Spring x k damp         -> spring s x k damp dt p
         Gravity g               -> gravity s g dt p
---      Custom fn               -> fn s dt p
+        -- Custom fn               -> fn s dt p
 
 -- Applies the momentum changes accumulated in the "dpx" field to 
 -- the phase space position.                                               
@@ -119,8 +142,9 @@ move s dt p =
 -- action becomes independent of where the particle has been "grabbed".
 drag : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s
 drag s dx dt p =
-    { p | px = s.scale (p.mass/dt) dx,
-          dpx = s.zero }
+    let dt' = if dt > 0.0 then dt else 0.015
+    in { p | px = s.scale (p.mass / dt') dx,
+             dpx = s.zero }
 
 -- Models a steady force applied over the given time step.
 force : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s
