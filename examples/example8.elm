@@ -82,13 +82,23 @@ app = {
     {- The animator specifies how to achieve the angle indicated
     by the director. We use the physics module to make the right-tilt
     bounce when it hits the final value and leave the left tilt unhindered.
+
+    animator        : Animation Direction Direction
+    bindings        : Dict Int (Animation Direction Direction)
+    bindParticle    : Int -> Particle Float -> Animation Direction Direction
+    particles       : Dict Int (Particle Float)
+    makeParticle    : Int -> Float -> Particle Float
+
+    We use `makeParticle` to make a "particle" for each button and plonk them into
+    the `particles` dictionary. Each of these particles, we turn them into an
+    animation of the direction structure by "binding" the particle to a particular
+    field in the direction structure. When binding, we specify the forces that the
+    particle is to be subject to in order to get the behaviour we want. Now we have
+    `bindings`, which is a collection of animations of direction structures. We then 
+    chain all these to form the animator.
     -}
     , animator = 
-        let particles = 
-                Dict.map makeParticle initial.direction.buttonAngles
-            makeParticle i angle =
-                Physics.particle f1d 1.0 angle f1d.zero
-            bindings = 
+        let bindings = 
                 Dict.map bindParticle particles
             bindParticle i particle =
                 Physics.bind f1d particle (data_ => buttonAngles_ => dictItem 0.0 i) 
@@ -96,6 +106,10 @@ app = {
                         [ Physics.Spring (degrees i dir.data.buttonAngles) 200.0 6.0
                         , Physics.Wall -1.0 0.7 90.0
                         ])
+            particles = 
+                Dict.map makeParticle initial.direction.buttonAngles
+            makeParticle i angle =
+                Physics.particle f1d 1.0 angle f1d.zero
             buttonAngles_ =
                 Focus.create .buttonAngles (\fn rec -> { rec | buttonAngles = fn rec.buttonAngles })
             chain i binding result =
