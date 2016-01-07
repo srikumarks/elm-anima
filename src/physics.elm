@@ -142,9 +142,8 @@ move s dt p =
 -- action becomes independent of where the particle has been "grabbed".
 drag : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s
 drag s dx dt p =
-    let dt' = if dt > 0.0 then dt else 0.015
-    in { p | px = s.scale (p.mass / dt') dx,
-             dpx = s.zero }
+    { p | px = s.scale (p.mass / dt) dx,
+          dpx = s.zero }
 
 -- Models a steady force applied over the given time step.
 force : Space s -> s -> TimeStep -> ParticleState s -> ParticleState s

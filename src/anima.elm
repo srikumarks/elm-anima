@@ -104,7 +104,13 @@ type alias App input model direction viewstate output =
 type CommonEvent = TimeStep Float | ResizeWindow Int Int | MousePos Int Int
 type Event a = EnvEvent CommonEvent | UserEvent a
 
-type alias Env = { dt : TimeStep, time : Float, width: Int, height: Int, mousePos : Point2D, tasks : List (Task.Task () ())}
+type alias Env = { dt : TimeStep
+                 , time : Float
+                 , width: Int
+                 , height: Int
+                 , mousePos : Point2D
+                 , tasks : List (Task.Task () ())
+                 }
 type alias WithEnv base = { env : Env, data : base }
 
 env0 : a -> WithEnv a
@@ -157,7 +163,7 @@ convertDirector :
     ((input,model) -> WithEnv director -> WithEnv director) 
     -> ((Event input, model) -> WithEnv director -> (WithEnv director, WithEnv director))
 convertDirector director =  \(input,model) dir -> 
-        let dir0 = dir
+        let dir0 = withTimeStep 0.0 dir
             dir1 = case input of
                         EnvEvent (ResizeWindow w h) ->
                             withWindowSize w h dir0
@@ -171,7 +177,7 @@ convertDirector director =  \(input,model) dir ->
                         UserEvent ue ->
                             director (ue,model) dir1
                         _ ->
-                            dir1
+                            clearTasks dir1
         in
            (dir2, dir2)
 
@@ -244,17 +250,22 @@ controllerProc timeStep director animator vs0 =
     animateWith (director, animator, vs0)
         (\(input,model) (director, animator, vs) ->
             let (director2, dir) = Auto.step (input, model) director
+                tasks = dir.env.tasks
             in
                case timeStep input of
                    Just dt ->
                        let (animator2, vs2) = Auto.step (dt, dir) animator
-                       in (vs2, (director2, animator2, clearTasks vs2))
+                       in (copyTasks dir vs2, (director2, animator2, vs2))
                    Nothing ->
-                       (vs, (director2, animator, clearTasks vs)))
+                       (copyTasks dir vs, (director2, animator, vs)))
 
 clearTasks : WithEnv a -> WithEnv a
 clearTasks dir = let env = dir.env
                  in { dir | env = { env | tasks = [] } }
+
+copyTasks from to =
+    let env = to.env
+    in { to | env = { env | tasks = from.env.tasks } }
                     
 -- helpers
 
@@ -331,42 +342,53 @@ The picker automaton is a singleton. It needs to be wired up to appropriate
 input in order for it to function.
 -}
 type PickerAction = PickupItem String | MoveItem | DropItem
-type alias Picker space = Animation (space, Maybe PickerAction) (Maybe (String, space), Maybe PickerAction)
+type alias Picker space = Auto.Automaton (space, Maybe PickerAction) (Maybe (String, space, Bool))
 picker : Picker Point2D
 picker = 
     let automaton = Auto.hiddenState Nothing updater
         noForce = f2d.zero
-        updater (dt, (pos, action)) state =
+        updater (pos, action) state =
             case action of
                 Just (PickupItem key) ->
                     case state of
                         Just _ -> 
                             -- Already moving something. Ignore this pickup.
-                            updater (dt, (pos, Just MoveItem)) state
+                            updater (pos, Just MoveItem) state
                             
                         Nothing -> 
                             -- Start drag operation
-                            ((dt, (Just (key, noForce), Just (PickupItem key))), Just (key, pos))
+                            (Just (key, noForce, True), Just (key, pos))
 
                 Just MoveItem ->
                     case state of
-                        Just (key, prevPos) -> 
+                        Just (key, startPos) -> 
                             -- Valid drag state
-                            ((dt, (Just (key, f2d.sub pos prevPos), Just MoveItem)), Just (key, pos))
+                            (Just (key, f2d.sub pos startPos, True), state)
 
                         Nothing -> 
                             -- Invalid drag state. Ignore it.
-                            ((dt, (Nothing, Nothing)), Nothing)
+                            (Nothing, state)
 
                 Just DropItem ->
-                    ((dt, (Nothing, Just DropItem)), Nothing)
+                    case state of
+                        Just (key, startPos) ->
+                            (Just (key, f2d.sub pos startPos, False), Nothing)
+
+                        Nothing ->
+                            (Nothing, state)
 
                 Nothing ->
-                    updater (dt, (pos, Just MoveItem)) state
+                    updater (pos, Just MoveItem) state
                     
     in automaton
 
 
+logMaybe str maybe = case maybe of
+    Just (PickupItem key) -> Just (Debug.log str (PickupItem key))
+    Just DropItem -> Just (Debug.log str DropItem)
+    Just MoveItem -> Just MoveItem
+    Nothing -> Nothing
+    
 -- When objects are identified by string keys, you can direct forces
 -- at them using this kind of dictionary.
 type alias DirectedForces space = Dict String (List (Force space))
@@ -392,13 +414,12 @@ particleColl :
     -> ParticleColl space a
 particleColl field items particles = 
     Auto.hiddenState (items, particles)
-        (\(dt, directedForces) (items, particles) ->
+        (\(dt, directedForces) (itemsIn, particlesIn) ->
             let (pos', particles') = 
-                    Dict.foldl distributeForces (items, particles) directedForces
+                    Dict.foldl distributeForces (itemsIn, particlesIn) directedForces
                     
                 distributeForces key forces (items, particles) =
-                    let mp = Dict.get key particles
-                    in case mp of
+                    case Dict.get key particles of
                         Just p ->
                             let (p', (_, (pos', _))) = 
                                     Auto.step (dt, forces) p
@@ -420,7 +441,8 @@ particleColl field items particles =
             in 
                ((dt, pos'), (pos', particles')))
 
-              
+
+{-
 {-| Makes an animation that animates a collection of particles
 that are part of the application. The picker is used to pick
 one particle of the given particle collection.
@@ -463,4 +485,14 @@ applyPicker picker setItems tracker forces particleColl =
                ((dt, setItems pickerAction result dir), (picker', forces', particleColl'))
     in
        automaton
-            
+          -}  
+
+dictItem =
+    let getPos default k dict =
+            Maybe.withDefault default (Dict.get k dict)
+        setPos k updater dict =
+            Dict.update k (Maybe.map updater) dict
+        fn default k =
+            Focus.create (getPos default k) (setPos k)
+    in
+       fn

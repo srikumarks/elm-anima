@@ -52,7 +52,7 @@ findEntry key list =
        
 {- We identify an item on either list using an enumeration.
 The item on each list is identified by a zero-based index. -}
-type Item = Fruit Int | Veggie Int
+type alias Item = LabelItem.Item
 
 findItem key model =
     let fruit = findEntry key model.fruits
@@ -76,11 +76,12 @@ type alias LabelInfo = Point2D
 type alias LabelColl = Dict.Dict String LabelInfo
 
 {- Each item is directed to move to a particular point within the page. -}
-type alias Direction = { pickerAction : Maybe PickerAction
-                       , pickedItem : Maybe String
-                       , suggestor : Point2D -> Item
-                       , finder : String -> Item
-                       , labels : LabelColl}
+type alias Direction = { picker : Picker Point2D
+                       , suggestion : Maybe (String, Item, Item, Point2D)
+                       , pickerOutput : Maybe (String, Point2D, Bool)
+                       , pickerDelta : Maybe Point2D
+                       , labels : LabelColl
+                       }
 
 {- For the moment, the view state is the same as the direction. 
 We'll just be filtering the position to get a smooth movement. -}
@@ -183,6 +184,11 @@ limit min max x =
     else
         x
 
+pickerAction input =
+    case input of
+        DnD x -> Just x
+        _ -> Nothing
+        
 {-| The director provides indications based on the input and the
 model computed by the modeller. These directions serve to specify
 stable configurations of the system. The animator's responsibility is
@@ -192,27 +198,11 @@ director : (Input, Model) -> WithEnv Direction -> WithEnv Direction
 director (input, model) dir =
     let data            = dir.data
         env             = dir.env
-        pickerAction    = case input of
-                                DnD x -> Just x
-                                _ -> Nothing
+        (picker', pickerOutput) = Auto.step (dir.env.mousePos, pickerAction input) dir.data.picker
+
         (lenf, lenv)    = (List.length model.fruits, List.length model.veggies)
         fruitLimit      = limit 0 lenf
         veggieLimit     = limit 0 lenv
-        (pickedItem, pickedIx) = case input of
-                                DnD (PickupItem key) ->
-                                    (Just key, Just (findItem key model))
-                                DnD DropItem ->
-                                    (Nothing, Nothing)
-                                _ ->
-                                    (dir.data.pickedItem, case dir.data.pickedItem of
-                                                            Just key -> Just (findItem key model)
-                                                            Nothing -> Nothing)
-        suggestor pos =
-            let i = fruitIndex pos
-            in if isNearFruits pos then
-                  Fruit (ignoreNext pickedIx (Fruit i))
-               else
-                  Veggie (ignoreNext pickedIx (Veggie i))
 
         -- If you're dragging an item i on the list, then it doesn't
         -- make sense to let you drop it at i + 1 on the same list.
@@ -224,53 +214,51 @@ director (input, model) dir =
                     in if ix' + 1 == i' then ix' else i'
                 (Just (Veggie ix'), Veggie i) ->
                     let i' = veggieLimit i
-                    in if ix' + 1 == i' then ix' else i
+                    in if ix' + 1 == i' then ix' else i'
                 (_, Fruit i) ->
                     fruitLimit i
                 (_, Veggie i) ->
                     veggieLimit i
                   
-        finder key =
-            findItem key model
-    in 
-       { dir | data = { labels          = directionForModel model dir.data.labels
-                      , pickerAction    = pickerAction
-                      , pickedItem      = pickedItem
-                      , suggestor       = suggestor
-                      , finder          = finder
-                      }
-       }
+        pickedIx = 
+            case pickerOutput of
+                Just (key,_,_) ->
+                    Just (findItem key model)
+                Nothing ->
+                    Nothing
 
-{-| The tasker is responsible for computing the instantaneous set of
-tasks to be executed by the runtime. This may arise either from the
-director or from the animator. Usually, it is preferable if the director
-initiates these tasks, but in some cases, like with the picker, it need
-to be done by the animator. This is because it is only the animator that
-knows about the final positions of the entities being animated. 
--}
-tasker : Animation (WithEnv ViewState) (WithEnv ViewState)
-tasker = 
-    let taskUpdate (dt,vs) pickedItem =
-            case (vs.data.pickerAction, pickedItem) of
-                (Just DropItem, Just key) ->
-                    case Dict.get key vs.data.labels of
-                        Just pos ->
-                            let dest    = Debug.log "dest" (vs.data.suggestor pos)
-                                source  = Debug.log "source" (vs.data.finder key)
-                            in
-                               (setTasks vs dt [Signal.send inputMailbox.address (Move source dest)], Nothing)
-                        Nothing ->
-                            (setTasks vs dt [], Nothing)
-                (Just (PickupItem key), Nothing) ->
-                    (setTasks vs dt [], Just key)
-                (_, pickedItem) ->
-                    (setTasks vs dt [], pickedItem)
-                    
-        setTasks vs dt tasks = 
-            let env = vs.env
-            in (dt, { vs | env = { env | tasks = tasks } })
-    in 
-       Auto.hiddenState Nothing taskUpdate
+        suggestor pos =
+            if isNearFruits pos then
+               Fruit (ignoreNext pickedIx (Fruit (fruitIndex pos)))
+            else
+                Veggie (ignoreNext pickedIx (Veggie (veggieIndex pos)))
+
+        suggestion = 
+            pickerOutput 
+                `Maybe.andThen` \(key, pos, active) ->
+                    case (pickedIx, Dict.get key dir.data.labels) of
+                        (Just source, Just pos0) ->
+                            let pos' = f2d.add pos pos0
+                            in Just (key, source, suggestor pos', pos')
+                        _ ->
+                            Nothing
+
+        tasks = 
+            case (suggestion, pickerOutput) of
+                (Just (key', source, dest, _), Just (key, pos, False)) ->
+                    [Signal.send inputMailbox.address (Move source dest)]
+                _ ->
+                    []
+            
+    in
+       { dir | data = { data |
+                        labels          = directionForModel model dir.data.labels
+                      , picker          = picker'
+                      , pickerOutput    = pickerOutput
+                      , suggestion      = suggestion
+                      }
+             , env = { env | tasks = tasks }
+       }
 
 springK = 200.0
 springDamping = 12.0
@@ -286,32 +274,62 @@ animated positions of the item being picked and moved about.
 -}
 animator : Animation (WithEnv Direction) (WithEnv ViewState)
 animator =
-    let pickableLabels =
-            applyPicker picker setFields getAction
-                (Auto.pure labelSprings)
-                (particleColl self_ initial.direction.labels particles)
-        setFields pickerAction labels dir =
-            let data = dir.data
-            in { dir | data = { data | labels = labels
-                                     , pickerAction = pickerAction } }
-        getAction dir =
-            (dir.env.mousePos, dir.data.pickerAction)
-        labelSprings (dt,dir) =
-            (dt, Dict.foldl addSpring Dict.empty dir.data.labels)
-        particles = 
+    let particles = 
             Dict.map animation initial.direction.labels
-        addSpring key pos result =
-            Dict.insert key [Physics.Spring pos springK springDamping] result
         animation key pos =
-            Physics.particle f2d 1.0 pos f2d.zero 
+            Physics.bind f2d
+                (Physics.particle f2d 1.0 pos f2d.zero)
+                (data_ => labels_ => dictItem f2d.zero key)
+                (force key)
+        force key dir =
+            case (dir.data.pickerOutput, dir.data.pickerDelta) of
+                (Just (key', pos, active), Just delta) ->
+                    if key == key' then
+                       [Physics.Drag delta]
+                    else
+                        spring key dir
+                _ ->
+                    spring key dir
+        spring key dir =
+            case Dict.get key dir.data.labels of
+                Just pos' ->
+                    [Physics.Spring pos' springK springDamping]
+                Nothing ->
+                    []
+        chain key anim result =
+            result >>> anim
+        passThrough = 
+            Auto.pure (\x->x)
+        forceAnimator = 
+            Dict.foldl chain passThrough particles
+        logEnabled = False
+        logInput label = 
+            Auto.pure (\(dt,dir) -> (dt, if logEnabled then Debug.log label dir else dir))
     in
-       pickableLabels >>> tasker
+        logInput "animInput" >>> pickerDiff >>> forceAnimator >>> logInput "animOutput"
+
+pickerDiff = 
+    let setPickerDiff pd dir =
+            let data = dir.data
+            in { dir | data = { data | pickerDelta = pd } }
+        updateDiff (dt, dir) prev =
+            case dir.data.pickerOutput of
+                Just (key, pos, active) ->
+                    case prev of
+                        Just prevPos ->
+                            ((dt, setPickerDiff (Just (f2d.sub pos prevPos)) dir), Just pos)
+                        Nothing ->
+                            ((dt, setPickerDiff (Just f2d.zero) dir), Just pos)
+                Nothing ->
+                    ((dt, setPickerDiff Nothing dir), Nothing)
+    in
+       Auto.hiddenState Nothing updateDiff
 
 labels_ : Focus.Focus Direction (Dict.Dict String LabelInfo)
 labels_ = Focus.create .labels (\fn rec -> { rec | labels = fn rec.labels })
 
-self_ : Focus.Focus LabelInfo Point2D
-self_ = Focus.create (\x->x) (\fn rec -> fn rec) 
+pos_ : Focus.Focus LabelInfo Point2D
+pos_ = Focus.create (\x->x) (\fn rec -> fn rec) 
 
 {-| The viewer simply shows what's given to it as the view state.
 At this point, it has the instanteous positions of all the
@@ -322,7 +340,9 @@ are effected using the "transform" CSS property.
 -}
 viewer : (Model, WithEnv ViewState) -> Html
 viewer (model, vs) =
-    div []
+    div [ onMouseMove inputMailbox.address (DnD MoveItem)
+        , onMouseUp inputMailbox.address (DnD DropItem)
+        ]
         [   div [ style [("position", "relative"), ("padding", "33pt"), ("font-size", "24pt")] ]
                 [ span [style [("position", "absolute"), ("left", "30pt")]] [text "Fruits"]
                 , span [style [("position", "absolute"), ("left", "230pt")]] [text "Veggies"]
@@ -339,48 +359,48 @@ viewer (model, vs) =
 fruitsList (model, vs) =
     List.indexedMap 
         (\i (k,label) -> 
-            labelItem' label (getPos k vs.data.labels) Nothing inputMailbox.address |> draggable k)
+            labelItem' label (getPos k vs.data.labels) Nothing inputMailbox.address |> draggable k (lift k vs) [])
         model.fruits
         
 -- Shows the current veggies list
 veggiesList (model, vs) =
     List.indexedMap 
         (\i (k,label) -> 
-            labelItem' label (getPos k vs.data.labels) Nothing inputMailbox.address |> draggable k)
+            labelItem' label (getPos k vs.data.labels) Nothing inputMailbox.address |> draggable k (lift k vs) [])
         model.veggies
      
+-- Make sure that the thing you're picking and moving stays on top.
+lift k vs =
+    case vs.data.suggestion of
+        Just (key, _, _, _) ->
+            if k == key then [("zIndex", "100")] else []
+        Nothing ->
+            []
+            
 -- If the picker is active, this shows two lines -
 -- one light gray one indicating the position of the
 -- label that was picked up, and one black one indicating
 -- the position where it will be dropped.
 suggestorLines (model, vs) = 
-     case vs.data.pickedItem of
-         Just key ->
-             let labelInfo = Dict.get key vs.data.labels 
-             in case labelInfo of
-                 Just pos ->
-                     let source = vs.data.finder key
-                         dest = vs.data.suggestor pos
-                         (x,y) = pos
-                         line item color =
-                             let (x,y) = case item of
-                                 Fruit f -> fruitPos f
-                                 Veggie v -> veggiePos v
-                             in
-                                div [style [ ("position", "absolute")
-                                           , ("height", "2px")
-                                           , ("width", "120pt")
-                                           , ("background", color)
-                                           , ("left", toString x ++ "px")
-                                           , ("top", toString (y - 5.0) ++ "px")
-                                           ]]
-                                    []
-                     in
-                        [ line source "lightgrey", line dest "black" ]
-                 Nothing ->
-                     []
-         Nothing ->
-             []
+    case vs.data.suggestion of
+        Just (key, source, dest, _) ->
+            [ line source "lightgrey", line dest "black" ]
+        Nothing ->
+            []
+
+line item color =
+    let (x,y) = case item of
+        Fruit f -> fruitPos f
+        Veggie v -> veggiePos v
+    in
+       div [style [ ("position", "absolute")
+                  , ("height", "2px")
+                  , ("width", "120pt")
+                  , ("background", color)
+                  , ("left", toString x ++ "px")
+                  , ("top", toString (y - 5.0) ++ "px")
+                  ]]
+           []
 
 dispCount str list =
     dispNum (List.length list) str
@@ -394,11 +414,11 @@ pluralize noun = noun ++ "s"
 
 -- Starting conditions
 initial = 
-    let dir = { suggestor = (\x -> Fruit 0)
+    let dir = { suggestion = Nothing
               , labels = directionForModel initialModel Dict.empty
-              , pickerAction = Nothing
-              , pickedItem = Nothing
-              , finder = \key -> Fruit 0
+              , picker = picker
+              , pickerOutput = Nothing
+              , pickerDelta = Nothing
               }
     in { model = initialModel
        , direction = dir
@@ -415,11 +435,12 @@ app =
     , initial = initial
     }
 
-draggable key entity =
-    entity key [ onMouseDown inputMailbox.address (DnD (PickupItem key))
-               , onMouseUp inputMailbox.address (DnD DropItem)
-               , onMouseMove inputMailbox.address (DnD MoveItem)
-               ]
+draggable key styles attrs entity =
+    entity key styles 
+        ([ onMouseDown inputMailbox.address (DnD (PickupItem key))
+         , onMouseUp inputMailbox.address (DnD DropItem)
+         , onMouseMove inputMailbox.address (DnD MoveItem)
+         ] ++ attrs)
            
 getPos key dict =
     let info = Dict.get key dict

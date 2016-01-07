@@ -5,16 +5,20 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Space exposing (..)
 
-labelItem label pos message address strKey = 
-    labelItem' label pos message address strKey []
+{- We identify an item on either list using an enumeration.
+The item on each list is identified by a zero-based index. -}
+type Item = Fruit Int | Veggie Int
 
-labelItem' label (x,y) message address strKey attrs =
+labelItem label pos message address strKey = 
+    labelItem' label pos message address strKey [] []
+
+labelItem' label (x,y) message address strKey styles attrs =
     let tx = "translate3d(" ++ (toString x) ++ "px," ++ (toString y) ++ "px, 0px)"
         clickHandler = case message of
             Just msg -> [onClick address msg]
             Nothing -> []
     in
-        div ([ style [ ("position", "absolute")
+        div ([ style ([ ("position", "absolute")
                      , ("left", "0px")
                      , ("top", "0px")
                      , ("-webkit-transform", tx)
@@ -29,7 +33,7 @@ labelItem' label (x,y) message address strKey attrs =
                      , ("-webkit-user-select", "none")
                      , ("-moz-user-select", "none")
                      , ("-ms-user-select", "none")
-                     ]
+                     ] ++ styles)
              , key strKey
              ] ++ clickHandler ++ attrs)
              [ span [style [ ("display", "table-cell")
@@ -56,6 +60,9 @@ veggieIndex (x,y) = let (_,y0) = veggiesOffset
                     in floor ((y - y0) / dy + 0.5)
 isNearFruits (x,y) = x < xMiddle
 isNearVeggies (x,y) = x > xMiddle
+itemPos item = case item of
+    Fruit i -> fruitPos i
+    Veggie i -> veggiePos i
 
 
 
