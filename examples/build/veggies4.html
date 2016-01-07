@@ -12048,7 +12048,8 @@ Elm.Veggies4.make = function (_elm) {
                                               ,{ctor: "_Tuple2",_0: "width",_1: "120pt"}
                                               ,{ctor: "_Tuple2",_0: "background",_1: color}
                                               ,{ctor: "_Tuple2",_0: "left",_1: A2($Basics._op["++"],$Basics.toString(x),"px")}
-                                              ,{ctor: "_Tuple2",_0: "top",_1: A2($Basics._op["++"],$Basics.toString(y - 5.0),"px")}]))]),
+                                              ,{ctor: "_Tuple2",_0: "top",_1: A2($Basics._op["++"],$Basics.toString(y - 5.0),"px")}
+                                              ,{ctor: "_Tuple2",_0: "zIndex",_1: "1"}]))]),
       _U.list([]));
    });
    var suggestorLines = function (_p8) {
@@ -12060,12 +12061,13 @@ Elm.Veggies4.make = function (_elm) {
             return _U.list([]);
          }
    };
+   var baseZOrder = _U.list([{ctor: "_Tuple2",_0: "zIndex",_1: "1"}]);
    var lift = F2(function (k,vs) {
       var _p11 = vs.data.suggestion;
       if (_p11.ctor === "Just") {
-            return _U.eq(k,_p11._0._0) ? _U.list([{ctor: "_Tuple2",_0: "zIndex",_1: "100"}]) : _U.list([]);
+            return _U.eq(k,_p11._0._0) ? _U.list([{ctor: "_Tuple2",_0: "zIndex",_1: "100"}]) : baseZOrder;
          } else {
-            return _U.list([]);
+            return baseZOrder;
          }
    });
    var pos_ = A2($Focus.create,function (x) {    return x;},F2(function (fn,rec) {    return fn(rec);}));
@@ -12453,6 +12455,7 @@ Elm.Veggies4.make = function (_elm) {
                                  ,viewer: viewer
                                  ,fruitsList: fruitsList
                                  ,veggiesList: veggiesList
+                                 ,baseZOrder: baseZOrder
                                  ,lift: lift
                                  ,suggestorLines: suggestorLines
                                  ,line: line

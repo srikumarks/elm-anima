@@ -370,12 +370,13 @@ veggiesList (model, vs) =
         model.veggies
      
 -- Make sure that the thing you're picking and moving stays on top.
+baseZOrder = [("zIndex", "1")]
 lift k vs =
     case vs.data.suggestion of
         Just (key, _, _, _) ->
-            if k == key then [("zIndex", "100")] else []
+            if k == key then [("zIndex", "100")] else baseZOrder
         Nothing ->
-            []
+            baseZOrder
             
 -- If the picker is active, this shows two lines -
 -- one light gray one indicating the position of the
@@ -399,6 +400,7 @@ line item color =
                   , ("background", color)
                   , ("left", toString x ++ "px")
                   , ("top", toString (y - 5.0) ++ "px")
+                  , ("zIndex", "1")
                   ]]
            []
 
