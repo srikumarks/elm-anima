@@ -153,9 +153,14 @@ particle based on "pickup", "move" and "drop" events.
 
 ```elm
 type PickerAction = PickupItem String | MoveItem | DropItem
-type alias Picker space = Animation (space, Maybe PickerAction) (Maybe (String, space), Maybe PickerAction)
+type alias Picker space = Automaton (space, Maybe PickerAction) (Maybe (String, space, Bool))
 picker : Picker Point2D
 ```
+
+The input is the pair `(mousePos, action)` and the output is
+an optional triple of `(key, moveExtent, active)`. The `active` boolean
+will turn false the moment the picker is dropped and will be true as long
+as the item remains "picked".
 
 You can use the picker in conjunction with the `applyPicker` function to
 attach the picker to a particle collection and respond to the events it
