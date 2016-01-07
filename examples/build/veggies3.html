@@ -11248,26 +11248,32 @@ Elm.Physics.make = function (_elm) {
          case "Spring": return A6(spring,s,_p0._0,_p0._1,_p0._2,dt,p);
          default: return A4(gravity,s,_p0._0,dt,p);}
    });
-   var applyForces = F3(function (s,_p1,p) {
-      var _p2 = _p1;
-      var _p3 = _p2._0;
-      var p2 = A3(move,s,_p3,A3($List.foldl,A2(applyForce,s,_p3),p,_p2._1));
-      return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p3,_1: {ctor: "_Tuple2",_0: p2.x,_1: p2.px}},_1: p2};
+   var removeOnceOnlyForces = $List.filter(function (f) {
+      var _p1 = f;
+      switch (_p1.ctor)
+      {case "Drag": return false;
+         case "Kick": return false;
+         default: return true;}
+   });
+   var applyForces = F3(function (s,_p2,p) {
+      var _p3 = _p2;
+      var _p4 = _p3._0;
+      var p2 = A3(move,s,_p4,A3($List.foldl,A2(applyForce,s,_p4),p,_p3._1));
+      return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p4,_1: {ctor: "_Tuple2",_0: p2.x,_1: p2.px}},_1: p2};
    });
    var bind = F4(function (s,p,focus,forces) {
       return A2($GenAnim.animateWith,
       p,
-      F2(function (_p4,p) {
-         var _p5 = _p4;
-         var _p8 = _p5._1;
-         var _p7 = _p5._0;
-         var _p6 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p7,_1: forces(_p8)},p);
-         var p2 = _p6._0;
-         var px2 = _p6._1._1._0;
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p7,_1: A3($Focus.set,focus,px2,_p8)},_1: p2};
+      F2(function (_p5,p) {
+         var _p6 = _p5;
+         var _p9 = _p6._1;
+         var _p8 = _p6._0;
+         var _p7 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p8,_1: forces(_p9)},p);
+         var p2 = _p7._0;
+         var px2 = _p7._1._1._0;
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p8,_1: A3($Focus.set,focus,px2,_p9)},_1: p2};
       }));
    });
-   var particle = F4(function (s,mass,x,vx) {    return A2($GenAnim.animateWith,{mass: mass,x: x,px: A2(s.scale,mass,vx),dpx: s.zero},applyForces(s));});
    var Gravity = function (a) {    return {ctor: "Gravity",_0: a};};
    var Spring = F3(function (a,b,c) {    return {ctor: "Spring",_0: a,_1: b,_2: c};});
    var Friction = F2(function (a,b) {    return {ctor: "Friction",_0: a,_1: b};});
@@ -11277,8 +11283,29 @@ Elm.Physics.make = function (_elm) {
    var SomeForce = function (a) {    return {ctor: "SomeForce",_0: a};};
    var Drag = function (a) {    return {ctor: "Drag",_0: a};};
    var ParticleState = F4(function (a,b,c,d) {    return {mass: a,x: b,px: c,dpx: d};});
-   var momentum = function (_p9) {    var _p10 = _p9;return _p10._1;};
-   var position = function (_p11) {    var _p12 = _p11;return _p12._0;};
+   var samplingInterval = 1.0 / 60.0;
+   var maxTimeGap = 10.0 * samplingInterval;
+   var applyForces$ = F4(function (i,s,_p10,p) {
+      applyForces$: while (true) {
+         var _p11 = _p10;
+         var _p15 = _p11._1;
+         var _p14 = _p11._0;
+         if (_U.cmp(_p14,maxTimeGap) > 0) {
+               var _v5 = i,_v6 = s,_v7 = {ctor: "_Tuple2",_0: maxTimeGap - samplingInterval,_1: _p15},_v8 = p;
+               i = _v5;
+               s = _v6;
+               _p10 = _v7;
+               p = _v8;
+               continue applyForces$;
+            } else if (_U.cmp(_p14,samplingInterval) > 0) return function (_p12) {
+                  var _p13 = _p12;
+                  return A4(applyForces$,i + 1,s,{ctor: "_Tuple2",_0: _p14 - samplingInterval,_1: _U.cmp(i,0) > 0 ? _p15 : removeOnceOnlyForces(_p15)},_p13._1);
+               }(A3(applyForces,s,{ctor: "_Tuple2",_0: samplingInterval,_1: _p15},p)); else return A3(applyForces,s,{ctor: "_Tuple2",_0: _p14,_1: _p15},p);
+      }
+   });
+   var particle = F4(function (s,mass,x,vx) {    return A2($GenAnim.animateWith,{mass: mass,x: x,px: A2(s.scale,mass,vx),dpx: s.zero},A2(applyForces$,0,s));});
+   var momentum = function (_p16) {    var _p17 = _p16;return _p17._1;};
+   var position = function (_p18) {    var _p19 = _p18;return _p19._0;};
    return _elm.Physics.values = {_op: _op
                                 ,particle: particle
                                 ,position: position
@@ -11435,133 +11462,91 @@ Elm.Anima.make = function (_elm) {
    $Time = Elm.Time.make(_elm),
    $Window = Elm.Window.make(_elm);
    var _op = {};
-   var applyPicker = F5(function (picker,setItems,tracker,forces,particleColl) {
-      var update = F2(function (_p1,_p0) {
-         var _p2 = _p1;
-         var _p10 = _p2._0;
-         var _p9 = _p2._1;
-         var _p3 = _p0;
-         var _p4 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p10,_1: _p9},_p3._1);
-         var forces$ = _p4._0;
-         var dirForces = _p4._1._1;
-         var _p5 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p10,_1: tracker(_p9)},_p3._0);
-         var picker$ = _p5._0;
-         var mDelta = _p5._1._1._0;
-         var pickerAction = _p5._1._1._1;
-         var dirForces$ = function () {
-            var _p6 = mDelta;
-            if (_p6.ctor === "Just") {
-                  return A3($Dict.update,
-                  _p6._0._0,
-                  function (v) {
-                     var _p7 = v;
-                     if (_p7.ctor === "Just") {
-                           return $Maybe.Just(A2($Basics._op["++"],_p7._0,_U.list([$Physics.Drag(_p6._0._1)])));
-                        } else {
-                           return $Maybe.Nothing;
-                        }
-                  },
-                  dirForces);
-               } else {
-                  return dirForces;
-               }
-         }();
-         var _p8 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p10,_1: dirForces$},_p3._2);
-         var particleColl$ = _p8._0;
-         var result = _p8._1._1;
-         return {ctor: "_Tuple2"
-                ,_0: {ctor: "_Tuple2",_0: _p10,_1: A3(setItems,pickerAction,result,_p9)}
-                ,_1: {ctor: "_Tuple3",_0: picker$,_1: forces$,_2: particleColl$}};
-      });
-      var automaton = A2($Automaton.hiddenState,{ctor: "_Tuple3",_0: picker,_1: forces,_2: particleColl},update);
-      return automaton;
-   });
+   var dictItem = function () {
+      var setPos = F3(function (k,updater,dict) {    return A3($Dict.update,k,$Maybe.map(updater),dict);});
+      var getPos = F3(function ($default,k,dict) {    return A2($Maybe.withDefault,$default,A2($Dict.get,k,dict));});
+      var fn = F2(function ($default,k) {    return A2($Focus.create,A2(getPos,$default,k),setPos(k));});
+      return fn;
+   }();
    var particleColl = F3(function (field,items,particles) {
       return A2($Automaton.hiddenState,
       {ctor: "_Tuple2",_0: items,_1: particles},
-      F2(function (_p12,_p11) {
-         var _p13 = _p12;
-         var _p23 = _p13._0;
-         var _p14 = _p11;
-         var distributeForces = F3(function (key,forces,_p15) {
-            var _p16 = _p15;
-            var _p21 = _p16._1;
-            var _p20 = _p16._0;
-            var mp = A2($Dict.get,key,_p21);
-            var _p17 = mp;
-            if (_p17.ctor === "Just") {
-                  var _p18 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p23,_1: forces},_p17._0);
-                  var p$ = _p18._0;
-                  var pos$ = _p18._1._1._0;
+      F2(function (_p1,_p0) {
+         var _p2 = _p1;
+         var _p12 = _p2._0;
+         var _p3 = _p0;
+         var distributeForces = F3(function (key,forces,_p4) {
+            var _p5 = _p4;
+            var _p10 = _p5._1;
+            var _p9 = _p5._0;
+            var _p6 = A2($Dict.get,key,_p10);
+            if (_p6.ctor === "Just") {
+                  var _p7 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p12,_1: forces},_p6._0);
+                  var p$ = _p7._0;
+                  var pos$ = _p7._1._1._0;
                   var updatePos = function (mPrevPos) {
-                     var _p19 = mPrevPos;
-                     if (_p19.ctor === "Just") {
-                           return $Maybe.Just(A3($Focus.set,field,pos$,_p19._0));
+                     var _p8 = mPrevPos;
+                     if (_p8.ctor === "Just") {
+                           return $Maybe.Just(A3($Focus.set,field,pos$,_p8._0));
                         } else {
                            return $Maybe.Nothing;
                         }
                   };
-                  var nextItems = A3($Dict.update,key,updatePos,_p20);
-                  return {ctor: "_Tuple2",_0: nextItems,_1: A3($Dict.insert,key,p$,_p21)};
+                  var nextItems = A3($Dict.update,key,updatePos,_p9);
+                  return {ctor: "_Tuple2",_0: nextItems,_1: A3($Dict.insert,key,p$,_p10)};
                } else {
-                  return {ctor: "_Tuple2",_0: _p20,_1: _p21};
+                  return {ctor: "_Tuple2",_0: _p9,_1: _p10};
                }
          });
-         var _p22 = A3($Dict.foldl,distributeForces,{ctor: "_Tuple2",_0: _p14._0,_1: _p14._1},_p13._1);
-         var pos$ = _p22._0;
-         var particles$ = _p22._1;
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p23,_1: pos$},_1: {ctor: "_Tuple2",_0: pos$,_1: particles$}};
+         var _p11 = A3($Dict.foldl,distributeForces,{ctor: "_Tuple2",_0: _p3._0,_1: _p3._1},_p2._1);
+         var pos$ = _p11._0;
+         var particles$ = _p11._1;
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p12,_1: pos$},_1: {ctor: "_Tuple2",_0: pos$,_1: particles$}};
       }));
    });
    var DropItem = {ctor: "DropItem"};
    var MoveItem = {ctor: "MoveItem"};
-   var PickupItem = function (a) {    return {ctor: "PickupItem",_0: a};};
    var picker = function () {
       var noForce = $Space.f2d.zero;
-      var updater = F2(function (_p24,state) {
+      var updater = F2(function (_p13,state) {
          updater: while (true) {
-            var _p25 = _p24;
-            var _p32 = _p25._1._0;
-            var _p31 = _p25._0;
-            var _p26 = _p25._1._1;
-            if (_p26.ctor === "Just") {
-                  switch (_p26._0.ctor)
-                  {case "PickupItem": var _p28 = _p26._0._0;
-                       var _p27 = state;
-                       if (_p27.ctor === "Just") {
-                             var _v12 = {ctor: "_Tuple2",_0: _p31,_1: {ctor: "_Tuple2",_0: _p32,_1: $Maybe.Just(MoveItem)}},_v13 = state;
-                             _p24 = _v12;
-                             state = _v13;
+            var _p14 = _p13;
+            var _p20 = _p14._0;
+            var _p15 = _p14._1;
+            if (_p15.ctor === "Just") {
+                  switch (_p15._0.ctor)
+                  {case "PickupItem": var _p17 = _p15._0._0;
+                       var _p16 = state;
+                       if (_p16.ctor === "Just") {
+                             var _v8 = {ctor: "_Tuple2",_0: _p20,_1: $Maybe.Just(MoveItem)},_v9 = state;
+                             _p13 = _v8;
+                             state = _v9;
                              continue updater;
                           } else {
                              return {ctor: "_Tuple2"
-                                    ,_0: {ctor: "_Tuple2"
-                                         ,_0: _p31
-                                         ,_1: {ctor: "_Tuple2",_0: $Maybe.Just({ctor: "_Tuple2",_0: _p28,_1: noForce}),_1: $Maybe.Just(PickupItem(_p28))}}
-                                    ,_1: $Maybe.Just({ctor: "_Tuple2",_0: _p28,_1: _p32})};
+                                    ,_0: $Maybe.Just({ctor: "_Tuple3",_0: _p17,_1: noForce,_2: true})
+                                    ,_1: $Maybe.Just({ctor: "_Tuple2",_0: _p17,_1: _p20})};
                           }
-                     case "MoveItem": var _p29 = state;
-                       if (_p29.ctor === "Just") {
-                             var _p30 = _p29._0._0;
+                     case "MoveItem": var _p18 = state;
+                       if (_p18.ctor === "Just") {
                              return {ctor: "_Tuple2"
-                                    ,_0: {ctor: "_Tuple2"
-                                         ,_0: _p31
-                                         ,_1: {ctor: "_Tuple2"
-                                              ,_0: $Maybe.Just({ctor: "_Tuple2",_0: _p30,_1: A2($Space.f2d.sub,_p32,_p29._0._1)})
-                                              ,_1: $Maybe.Just(MoveItem)}}
-                                    ,_1: $Maybe.Just({ctor: "_Tuple2",_0: _p30,_1: _p32})};
+                                    ,_0: $Maybe.Just({ctor: "_Tuple3",_0: _p18._0._0,_1: A2($Space.f2d.sub,_p20,_p18._0._1),_2: true})
+                                    ,_1: state};
                           } else {
-                             return {ctor: "_Tuple2"
-                                    ,_0: {ctor: "_Tuple2",_0: _p31,_1: {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: $Maybe.Nothing}}
-                                    ,_1: $Maybe.Nothing};
+                             return {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: state};
                           }
-                     default: return {ctor: "_Tuple2"
-                                     ,_0: {ctor: "_Tuple2",_0: _p31,_1: {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: $Maybe.Just(DropItem)}}
-                                     ,_1: $Maybe.Nothing};}
+                     default: var _p19 = state;
+                       if (_p19.ctor === "Just") {
+                             return {ctor: "_Tuple2"
+                                    ,_0: $Maybe.Just({ctor: "_Tuple3",_0: _p19._0._0,_1: A2($Space.f2d.sub,_p20,_p19._0._1),_2: false})
+                                    ,_1: $Maybe.Nothing};
+                          } else {
+                             return {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: state};
+                          }}
                } else {
-                  var _v15 = {ctor: "_Tuple2",_0: _p31,_1: {ctor: "_Tuple2",_0: _p32,_1: $Maybe.Just(MoveItem)}},_v16 = state;
-                  _p24 = _v15;
-                  state = _v16;
+                  var _v12 = {ctor: "_Tuple2",_0: _p20,_1: $Maybe.Just(MoveItem)},_v13 = state;
+                  _p13 = _v12;
+                  state = _v13;
                   continue updater;
                }
          }
@@ -11569,35 +11554,48 @@ Elm.Anima.make = function (_elm) {
       var automaton = A2($Automaton.hiddenState,$Maybe.Nothing,updater);
       return automaton;
    }();
+   var PickupItem = function (a) {    return {ctor: "PickupItem",_0: a};};
+   var logMaybe = F2(function (str,maybe) {
+      var _p21 = maybe;
+      if (_p21.ctor === "Just") {
+            switch (_p21._0.ctor)
+            {case "PickupItem": return $Maybe.Just(A2($Debug.log,str,PickupItem(_p21._0._0)));
+               case "DropItem": return $Maybe.Just(A2($Debug.log,str,DropItem));
+               default: return $Maybe.Just(MoveItem);}
+         } else {
+            return $Maybe.Nothing;
+         }
+   });
    var animateRec = F2(function (recOut,anims) {
-      var outFilter = $Automaton.pure(function (_p33) {    var _p34 = _p33;return {ctor: "_Tuple2",_0: _p34._0,_1: _p34._1._1};});
-      var inFilter = $Automaton.pure(function (_p35) {    var _p36 = _p35;return {ctor: "_Tuple2",_0: _p36._0,_1: {ctor: "_Tuple2",_0: _p36._1,_1: recOut}};});
+      var outFilter = $Automaton.pure(function (_p22) {    var _p23 = _p22;return {ctor: "_Tuple2",_0: _p23._0,_1: _p23._1._1};});
+      var inFilter = $Automaton.pure(function (_p24) {    var _p25 = _p24;return {ctor: "_Tuple2",_0: _p25._0,_1: {ctor: "_Tuple2",_0: _p25._1,_1: recOut}};});
       return A2($Automaton._op[">>>"],inFilter,A3($List.foldl,F2(function (x,y) {    return A2($Automaton._op[">>>"],x,y);}),outFilter,anims));
    });
    var y_ = A2($Focus.create,function (_) {    return _.y;},F2(function (f,rec) {    return _U.update(rec,{y: f(rec.y)});}));
    var x_ = A2($Focus.create,function (_) {    return _.x;},F2(function (f,rec) {    return _U.update(rec,{x: f(rec.x)});}));
    var data_ = A2($Focus.create,function (_) {    return _.data;},F2(function (f,rec) {    return _U.update(rec,{data: f(rec.data)});}));
-   var dropTimeStep = function (anim) {    return A2($Automaton._op[">>>"],anim,$Automaton.pure(function (_p37) {    var _p38 = _p37;return _p38._1;}));};
+   var dropTimeStep = function (anim) {    return A2($Automaton._op[">>>"],anim,$Automaton.pure(function (_p26) {    var _p27 = _p26;return _p27._1;}));};
    var copyProp = F2(function (focIn,focOut) {
-      return $Automaton.pure(function (_p39) {
-         var _p40 = _p39;
-         var _p41 = _p40._1._0;
-         return {ctor: "_Tuple2",_0: _p40._0,_1: {ctor: "_Tuple2",_0: _p41,_1: A3($Focus.set,focOut,A2($Focus.get,focIn,_p41),_p40._1._1)}};
+      return $Automaton.pure(function (_p28) {
+         var _p29 = _p28;
+         var _p30 = _p29._1._0;
+         return {ctor: "_Tuple2",_0: _p29._0,_1: {ctor: "_Tuple2",_0: _p30,_1: A3($Focus.set,focOut,A2($Focus.get,focIn,_p30),_p29._1._1)}};
       });
    });
-   var pure = function (f) {    return $Automaton.pure(function (_p42) {    var _p43 = _p42;return {ctor: "_Tuple2",_0: _p43._0,_1: f(_p43._1)};});};
+   var pure = function (f) {    return $Automaton.pure(function (_p31) {    var _p32 = _p31;return {ctor: "_Tuple2",_0: _p32._0,_1: f(_p32._1)};});};
    var pureData = function (f) {
-      return $Automaton.pure(function (_p44) {
-         var _p45 = _p44;
-         var _p46 = _p45._1;
-         return {ctor: "_Tuple2",_0: _p45._0,_1: {env: _p46.env,data: f(_p46.data)}};
+      return $Automaton.pure(function (_p33) {
+         var _p34 = _p33;
+         var _p35 = _p34._1;
+         return {ctor: "_Tuple2",_0: _p34._0,_1: {env: _p35.env,data: f(_p35.data)}};
       });
    };
+   var copyTasks = F2(function (from,to) {    var env = to.env;return _U.update(to,{env: _U.update(env,{tasks: from.env.tasks})});});
    var clearTasks = function (dir) {    var env = dir.env;return _U.update(dir,{env: _U.update(env,{tasks: _U.list([])})});};
    var convertModeller = F3(function (modeller,einput,model) {
-      var _p47 = einput;
-      if (_p47.ctor === "UserEvent") {
-            return A2(modeller,_p47._0,model);
+      var _p36 = einput;
+      if (_p36.ctor === "UserEvent") {
+            return A2(modeller,_p36._0,model);
          } else {
             return model;
          }
@@ -11606,9 +11604,9 @@ Elm.Anima.make = function (_elm) {
    var animationNeeded = $Signal.constant(true);
    var frames = A2($Time.fpsWhen,60,animationNeeded);
    var timeStep = function (e) {
-      var _p48 = e;
-      if (_p48.ctor === "EnvEvent" && _p48._0.ctor === "TimeStep") {
-            return $Maybe.Just(_p48._0._0);
+      var _p37 = e;
+      if (_p37.ctor === "EnvEvent" && _p37._0.ctor === "TimeStep") {
+            return $Maybe.Just(_p37._0._0);
          } else {
             return $Maybe.Nothing;
          }
@@ -11616,27 +11614,27 @@ Elm.Anima.make = function (_elm) {
    var withMousePos = F2(function (pos,rec) {    var env = rec.env;return _U.update(rec,{env: _U.update(env,{mousePos: pos})});});
    var withTimeStep = F2(function (dt,rec) {    var env = rec.env;return _U.update(rec,{env: _U.update(env,{dt: dt,time: env.time + dt})});});
    var withWindowSize = F3(function (w,h,rec) {    var env = rec.env;return _U.update(rec,{env: _U.update(env,{width: w,height: h})});});
-   var convertDirector = F3(function (director,_p49,dir) {
-      var _p50 = _p49;
-      var _p53 = _p50._0;
-      var dir0 = dir;
+   var convertDirector = F3(function (director,_p38,dir) {
+      var _p39 = _p38;
+      var _p42 = _p39._0;
+      var dir0 = A2(withTimeStep,0.0,dir);
       var dir1 = function () {
-         var _p51 = _p53;
-         if (_p51.ctor === "EnvEvent") {
-               switch (_p51._0.ctor)
-               {case "ResizeWindow": return A3(withWindowSize,_p51._0._0,_p51._0._1,dir0);
-                  case "TimeStep": return A2(withTimeStep,_p51._0._0,dir0);
-                  default: return A2(withMousePos,{ctor: "_Tuple2",_0: $Basics.toFloat(_p51._0._0),_1: $Basics.toFloat(_p51._0._1)},dir0);}
+         var _p40 = _p42;
+         if (_p40.ctor === "EnvEvent") {
+               switch (_p40._0.ctor)
+               {case "ResizeWindow": return A3(withWindowSize,_p40._0._0,_p40._0._1,dir0);
+                  case "TimeStep": return A2(withTimeStep,_p40._0._0,dir0);
+                  default: return A2(withMousePos,{ctor: "_Tuple2",_0: $Basics.toFloat(_p40._0._0),_1: $Basics.toFloat(_p40._0._1)},dir0);}
             } else {
                return dir0;
             }
       }();
       var dir2 = function () {
-         var _p52 = _p53;
-         if (_p52.ctor === "UserEvent") {
-               return A2(director,{ctor: "_Tuple2",_0: _p52._0,_1: _p50._1},dir1);
+         var _p41 = _p42;
+         if (_p41.ctor === "UserEvent") {
+               return A2(director,{ctor: "_Tuple2",_0: _p41._0,_1: _p39._1},dir1);
             } else {
-               return dir1;
+               return clearTasks(dir1);
             }
       }();
       return {ctor: "_Tuple2",_0: dir2,_1: dir2};
@@ -11649,9 +11647,9 @@ Elm.Anima.make = function (_elm) {
    var UserEvent = function (a) {    return {ctor: "UserEvent",_0: a};};
    var EnvEvent = function (a) {    return {ctor: "EnvEvent",_0: a};};
    var MousePos = F2(function (a,b) {    return {ctor: "MousePos",_0: a,_1: b};});
-   var mousePositionEvents = A2($Signal.map,function (_p54) {    var _p55 = _p54;return EnvEvent(A2(MousePos,_p55._0,_p55._1));},$Mouse.position);
+   var mousePositionEvents = A2($Signal.map,function (_p43) {    var _p44 = _p43;return EnvEvent(A2(MousePos,_p44._0,_p44._1));},$Mouse.position);
    var ResizeWindow = F2(function (a,b) {    return {ctor: "ResizeWindow",_0: a,_1: b};});
-   var windowResizeEvents = A2($Signal.map,function (_p56) {    var _p57 = _p56;return EnvEvent(A2(ResizeWindow,_p57._0,_p57._1));},$Window.dimensions);
+   var windowResizeEvents = A2($Signal.map,function (_p45) {    var _p46 = _p45;return EnvEvent(A2(ResizeWindow,_p46._0,_p46._1));},$Window.dimensions);
    var TimeStep = function (a) {    return {ctor: "TimeStep",_0: a};};
    var timeStepEvents = A2($Signal.map,function (dt) {    return EnvEvent(TimeStep($Time.inSeconds(dt)));},frames);
    var mergeEnvironmentChanges = function (sig) {
@@ -11701,23 +11699,24 @@ Elm.Anima.make = function (_elm) {
    var controllerProc = F4(function (timeStep,director,animator,vs0) {
       return A2(animateWith,
       {ctor: "_Tuple3",_0: director,_1: animator,_2: vs0},
-      F2(function (_p59,_p58) {
-         var _p60 = _p59;
-         var _p67 = _p60._0;
-         var _p61 = _p58;
-         var _p66 = _p61._2;
-         var _p65 = _p61._1;
-         var _p62 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p67,_1: _p60._1},_p61._0);
-         var director2 = _p62._0;
-         var dir = _p62._1;
-         var _p63 = timeStep(_p67);
-         if (_p63.ctor === "Just") {
-               var _p64 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p63._0,_1: dir},_p65);
-               var animator2 = _p64._0;
-               var vs2 = _p64._1;
-               return {ctor: "_Tuple2",_0: vs2,_1: {ctor: "_Tuple3",_0: director2,_1: animator2,_2: clearTasks(vs2)}};
+      F2(function (_p48,_p47) {
+         var _p49 = _p48;
+         var _p56 = _p49._0;
+         var _p50 = _p47;
+         var _p55 = _p50._2;
+         var _p54 = _p50._1;
+         var _p51 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p56,_1: _p49._1},_p50._0);
+         var director2 = _p51._0;
+         var dir = _p51._1;
+         var tasks = dir.env.tasks;
+         var _p52 = timeStep(_p56);
+         if (_p52.ctor === "Just") {
+               var _p53 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p52._0,_1: dir},_p54);
+               var animator2 = _p53._0;
+               var vs2 = _p53._1;
+               return {ctor: "_Tuple2",_0: A2(copyTasks,dir,vs2),_1: {ctor: "_Tuple3",_0: director2,_1: animator2,_2: vs2}};
             } else {
-               return {ctor: "_Tuple2",_0: _p66,_1: {ctor: "_Tuple3",_0: director2,_1: _p65,_2: clearTasks(_p66)}};
+               return {ctor: "_Tuple2",_0: A2(copyTasks,dir,_p55),_1: {ctor: "_Tuple3",_0: director2,_1: _p54,_2: _p55}};
             }
       }));
    });
@@ -11725,26 +11724,26 @@ Elm.Anima.make = function (_elm) {
       var controllerr = A4(controllerProc,app.timeStep,app.director,dropTimeStep(app.animator),app.initial.viewstate);
       var combined = A2($Automaton.hiddenState,
       {ctor: "_Tuple2",_0: app,_1: controllerr},
-      F2(function (input,_p68) {
-         var _p69 = _p68;
-         var _p73 = _p69._0;
-         var _p70 = A2($Automaton.step,input,_p73.modeller);
-         var modeller$ = _p70._0;
-         var model = _p70._1;
-         var _p71 = A2($Automaton.step,{ctor: "_Tuple2",_0: input,_1: model},_p69._1);
-         var controller$ = _p71._0;
-         var viewstate = _p71._1;
-         var _p72 = A2($Automaton.step,{ctor: "_Tuple2",_0: model,_1: viewstate},_p73.viewer);
-         var viewer$ = _p72._0;
-         var view = _p72._1;
+      F2(function (input,_p57) {
+         var _p58 = _p57;
+         var _p62 = _p58._0;
+         var _p59 = A2($Automaton.step,input,_p62.modeller);
+         var modeller$ = _p59._0;
+         var model = _p59._1;
+         var _p60 = A2($Automaton.step,{ctor: "_Tuple2",_0: input,_1: model},_p58._1);
+         var controller$ = _p60._0;
+         var viewstate = _p60._1;
+         var _p61 = A2($Automaton.step,{ctor: "_Tuple2",_0: model,_1: viewstate},_p62.viewer);
+         var viewer$ = _p61._0;
+         var view = _p61._1;
          return {ctor: "_Tuple2"
                 ,_0: {ctor: "_Tuple2",_0: view,_1: viewstate.env.tasks}
-                ,_1: {ctor: "_Tuple2",_0: _U.update(_p73,{modeller: modeller$,viewer: viewer$}),_1: controller$}};
+                ,_1: {ctor: "_Tuple2",_0: _U.update(_p62,{modeller: modeller$,viewer: viewer$}),_1: controller$}};
       }));
       var input = mergeEnvironmentChanges(userInput);
       var viewAndTasksSig = A3($Automaton.run,combined,{ctor: "_Tuple2",_0: app.initial.view,_1: _U.list([])},input);
       return {ctor: "_Tuple2"
-             ,_0: A2($Signal.map,function (_p74) {    var _p75 = _p74;return _p75._0;},viewAndTasksSig)
+             ,_0: A2($Signal.map,function (_p63) {    var _p64 = _p63;return _p64._0;},viewAndTasksSig)
              ,_1: A3($Signal.filterMap,
              function (tasks) {
                 return _U.cmp($List.length(tasks),0) > 0 ? $Maybe.Just(A2($Task.andThen,
@@ -11754,50 +11753,50 @@ Elm.Anima.make = function (_elm) {
                 })) : $Maybe.Nothing;
              },
              $Task.succeed({ctor: "_Tuple0"}),
-             A2($Signal.map,function (_p76) {    var _p77 = _p76;return _p77._1;},viewAndTasksSig))};
+             A2($Signal.map,function (_p65) {    var _p66 = _p65;return _p66._1;},viewAndTasksSig))};
    });
    var runOpinionatedApp = F2(function (app,userInput) {    return A2(runApp,appify(app),userInput);});
    var animProp = F3(function (focIn,focOut,anim) {
       return A2(animateWith,
       anim,
-      F2(function (_p78,anim) {
-         var _p79 = _p78;
-         var _p82 = _p79._1._0;
-         var _p81 = _p79._0;
-         var dir1 = A2($Focus.get,focIn,_p82);
-         var _p80 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p81,_1: dir1},anim);
-         var anim2 = _p80._0;
-         var space1 = _p80._1._1;
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p81,_1: {ctor: "_Tuple2",_0: _p82,_1: A3($Focus.set,focOut,space1,_p79._1._1)}},_1: anim2};
+      F2(function (_p67,anim) {
+         var _p68 = _p67;
+         var _p71 = _p68._1._0;
+         var _p70 = _p68._0;
+         var dir1 = A2($Focus.get,focIn,_p71);
+         var _p69 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p70,_1: dir1},anim);
+         var anim2 = _p69._0;
+         var space1 = _p69._1._1;
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p70,_1: {ctor: "_Tuple2",_0: _p71,_1: A3($Focus.set,focOut,space1,_p68._1._1)}},_1: anim2};
       }));
    });
    var animPropInline = F2(function (foc,anim) {
       return A2(animateWith,
       anim,
-      F2(function (_p83,anim) {
-         var _p84 = _p83;
-         var _p87 = _p84._1._0;
-         var _p86 = _p84._0;
-         var dir1 = A2($Focus.get,foc,_p87);
-         var _p85 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p86,_1: dir1},anim);
-         var anim2 = _p85._0;
-         var space1 = _p85._1._1;
-         var rec2 = A3($Focus.set,foc,space1,_p87);
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p86,_1: {ctor: "_Tuple2",_0: rec2,_1: rec2}},_1: anim2};
+      F2(function (_p72,anim) {
+         var _p73 = _p72;
+         var _p76 = _p73._1._0;
+         var _p75 = _p73._0;
+         var dir1 = A2($Focus.get,foc,_p76);
+         var _p74 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p75,_1: dir1},anim);
+         var anim2 = _p74._0;
+         var space1 = _p74._1._1;
+         var rec2 = A3($Focus.set,foc,space1,_p76);
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p75,_1: {ctor: "_Tuple2",_0: rec2,_1: rec2}},_1: anim2};
       }));
    });
    var filterProp = F2(function (focus,anim) {
       return A2(animateWith,
       anim,
-      F2(function (_p88,anim) {
-         var _p89 = _p88;
-         var _p92 = _p89._1;
-         var _p91 = _p89._0;
-         var dir1 = A2($Focus.get,focus,_p92);
-         var _p90 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p91,_1: dir1},anim);
-         var anim2 = _p90._0;
-         var space1 = _p90._1._1;
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p91,_1: A3($Focus.set,focus,space1,_p92)},_1: anim2};
+      F2(function (_p77,anim) {
+         var _p78 = _p77;
+         var _p81 = _p78._1;
+         var _p80 = _p78._0;
+         var dir1 = A2($Focus.get,focus,_p81);
+         var _p79 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p80,_1: dir1},anim);
+         var anim2 = _p79._0;
+         var space1 = _p79._1._1;
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p80,_1: A3($Focus.set,focus,space1,_p81)},_1: anim2};
       }));
    });
    var timeKeeper = function (t0) {    return A2($Automaton.state,t0,F2(function (x,y) {    return x + y;}));};
@@ -11862,6 +11861,7 @@ Elm.Anima.make = function (_elm) {
                               ,procWithUpdater: procWithUpdater
                               ,controllerProc: controllerProc
                               ,clearTasks: clearTasks
+                              ,copyTasks: copyTasks
                               ,pureData: pureData
                               ,pure: pure
                               ,animProp: animProp
@@ -11877,8 +11877,9 @@ Elm.Anima.make = function (_elm) {
                               ,MoveItem: MoveItem
                               ,DropItem: DropItem
                               ,picker: picker
+                              ,logMaybe: logMaybe
                               ,particleColl: particleColl
-                              ,applyPicker: applyPicker};
+                              ,dictItem: dictItem};
 };Elm.LabelItem = Elm.LabelItem || {};
 Elm.LabelItem.make = function (_elm) {
    "use strict";
@@ -11911,47 +11912,50 @@ Elm.LabelItem.make = function (_elm) {
    };
    var veggiesDelta = {ctor: "_Tuple2",_0: pt2px(0.0),_1: pt2px(36.0)};
    var veggiePos = function (i) {    return A3($Space.f2d.madd,$Basics.toFloat(i),veggiesDelta,veggiesOffset);};
-   var veggieIndex = function (_p4) {
-      var _p5 = _p4;
-      var _p6 = veggiesDelta;
-      var dy = _p6._1;
-      var _p7 = veggiesOffset;
-      var y0 = _p7._1;
-      return $Basics.floor((_p5._1 - y0) / dy + 0.5);
+   var itemPos = function (item) {    var _p4 = item;if (_p4.ctor === "Fruit") {    return fruitPos(_p4._0);} else {    return veggiePos(_p4._0);}};
+   var veggieIndex = function (_p5) {
+      var _p6 = _p5;
+      var _p7 = veggiesDelta;
+      var dy = _p7._1;
+      var _p8 = veggiesOffset;
+      var y0 = _p8._1;
+      return $Basics.floor((_p6._1 - y0) / dy + 0.5);
    };
    var xMiddle = pt2px(0.5 * (30.0 + 230.0));
-   var isNearFruits = function (_p8) {    var _p9 = _p8;return _U.cmp(_p9._0,xMiddle) < 0;};
-   var isNearVeggies = function (_p10) {    var _p11 = _p10;return _U.cmp(_p11._0,xMiddle) > 0;};
-   var labelItem$ = F6(function (label,_p12,message,address,strKey,attrs) {
-      var _p13 = _p12;
+   var isNearFruits = function (_p9) {    var _p10 = _p9;return _U.cmp(_p10._0,xMiddle) < 0;};
+   var isNearVeggies = function (_p11) {    var _p12 = _p11;return _U.cmp(_p12._0,xMiddle) > 0;};
+   var labelItem$ = F7(function (label,_p13,message,address,strKey,styles,attrs) {
+      var _p14 = _p13;
       var clickHandler = function () {
-         var _p14 = message;
-         if (_p14.ctor === "Just") {
-               return _U.list([A2($Html$Events.onClick,address,_p14._0)]);
+         var _p15 = message;
+         if (_p15.ctor === "Just") {
+               return _U.list([A2($Html$Events.onClick,address,_p15._0)]);
             } else {
                return _U.list([]);
             }
       }();
       var tx = A2($Basics._op["++"],
       "translate3d(",
-      A2($Basics._op["++"],$Basics.toString(_p13._0),A2($Basics._op["++"],"px,",A2($Basics._op["++"],$Basics.toString(_p13._1),"px, 0px)"))));
+      A2($Basics._op["++"],$Basics.toString(_p14._0),A2($Basics._op["++"],"px,",A2($Basics._op["++"],$Basics.toString(_p14._1),"px, 0px)"))));
       return A2($Html.div,
       A2($Basics._op["++"],
-      _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "position",_1: "absolute"}
-                                              ,{ctor: "_Tuple2",_0: "left",_1: "0px"}
-                                              ,{ctor: "_Tuple2",_0: "top",_1: "0px"}
-                                              ,{ctor: "_Tuple2",_0: "-webkit-transform",_1: tx}
-                                              ,{ctor: "_Tuple2",_0: "-moz-transform",_1: tx}
-                                              ,{ctor: "_Tuple2",_0: "-ms-transform",_1: tx}
-                                              ,{ctor: "_Tuple2",_0: "transform",_1: tx}
-                                              ,{ctor: "_Tuple2",_0: "width",_1: "120pt"}
-                                              ,{ctor: "_Tuple2",_0: "height",_1: "30pt"}
-                                              ,{ctor: "_Tuple2",_0: "background",_1: "dodgerblue"}
-                                              ,{ctor: "_Tuple2",_0: "display",_1: "table"}
-                                              ,{ctor: "_Tuple2",_0: "text-align",_1: "center"}
-                                              ,{ctor: "_Tuple2",_0: "-webkit-user-select",_1: "none"}
-                                              ,{ctor: "_Tuple2",_0: "-moz-user-select",_1: "none"}
-                                              ,{ctor: "_Tuple2",_0: "-ms-user-select",_1: "none"}]))
+      _U.list([$Html$Attributes.style(A2($Basics._op["++"],
+              _U.list([{ctor: "_Tuple2",_0: "position",_1: "absolute"}
+                      ,{ctor: "_Tuple2",_0: "left",_1: "0px"}
+                      ,{ctor: "_Tuple2",_0: "top",_1: "0px"}
+                      ,{ctor: "_Tuple2",_0: "-webkit-transform",_1: tx}
+                      ,{ctor: "_Tuple2",_0: "-moz-transform",_1: tx}
+                      ,{ctor: "_Tuple2",_0: "-ms-transform",_1: tx}
+                      ,{ctor: "_Tuple2",_0: "transform",_1: tx}
+                      ,{ctor: "_Tuple2",_0: "width",_1: "120pt"}
+                      ,{ctor: "_Tuple2",_0: "height",_1: "30pt"}
+                      ,{ctor: "_Tuple2",_0: "background",_1: "dodgerblue"}
+                      ,{ctor: "_Tuple2",_0: "display",_1: "table"}
+                      ,{ctor: "_Tuple2",_0: "text-align",_1: "center"}
+                      ,{ctor: "_Tuple2",_0: "-webkit-user-select",_1: "none"}
+                      ,{ctor: "_Tuple2",_0: "-moz-user-select",_1: "none"}
+                      ,{ctor: "_Tuple2",_0: "-ms-user-select",_1: "none"}]),
+              styles))
               ,$Html$Attributes.key(strKey)]),
       A2($Basics._op["++"],clickHandler,attrs)),
       _U.list([A2($Html.span,
@@ -11960,8 +11964,12 @@ Elm.LabelItem.make = function (_elm) {
                                               ,{ctor: "_Tuple2",_0: "color",_1: "white"}]))]),
       _U.list([$Html.text(label)]))]));
    });
-   var labelItem = F5(function (label,pos,message,address,strKey) {    return A6(labelItem$,label,pos,message,address,strKey,_U.list([]));});
+   var labelItem = F5(function (label,pos,message,address,strKey) {    return A7(labelItem$,label,pos,message,address,strKey,_U.list([]),_U.list([]));});
+   var Veggie = function (a) {    return {ctor: "Veggie",_0: a};};
+   var Fruit = function (a) {    return {ctor: "Fruit",_0: a};};
    return _elm.LabelItem.values = {_op: _op
+                                  ,Fruit: Fruit
+                                  ,Veggie: Veggie
                                   ,labelItem: labelItem
                                   ,labelItem$: labelItem$
                                   ,pt2px: pt2px
@@ -11975,7 +11983,8 @@ Elm.LabelItem.make = function (_elm) {
                                   ,fruitIndex: fruitIndex
                                   ,veggieIndex: veggieIndex
                                   ,isNearFruits: isNearFruits
-                                  ,isNearVeggies: isNearVeggies};
+                                  ,isNearVeggies: isNearVeggies
+                                  ,itemPos: itemPos};
 };Elm.Veggies3 = Elm.Veggies3 || {};
 Elm.Veggies3.make = function (_elm) {
    "use strict";

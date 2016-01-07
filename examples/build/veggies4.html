@@ -11234,7 +11234,7 @@ Elm.Physics.make = function (_elm) {
    });
    var spring = F6(function (s,x0,k,damp,dt,obj) {    return A4(force,s,A4(s.lsum,k,A2(s.sub,x0,obj.x),$Basics.negate(damp) / obj.mass,obj.px),dt,obj);});
    var gravity = F4(function (s,g,dt,obj) {    return A4(force,s,A2(s.scale,obj.mass,g),dt,obj);});
-   var drag = F4(function (s,dx,dt,p) {    var dt$ = _U.cmp(dt,0.0) > 0 ? dt : 1.5e-2;return _U.update(p,{px: A2(s.scale,p.mass / dt$,dx),dpx: s.zero});});
+   var drag = F4(function (s,dx,dt,p) {    return _U.update(p,{px: A2(s.scale,p.mass / dt,dx),dpx: s.zero});});
    var move = F3(function (s,dt,p) {    var newpx = A2(s.add,p.px,p.dpx);return _U.update(p,{px: newpx,dpx: s.zero,x: A3(s.madd,dt / p.mass,newpx,p.x)});});
    var applyForce = F4(function (s,dt,f,p) {
       var _p0 = f;
@@ -11248,26 +11248,32 @@ Elm.Physics.make = function (_elm) {
          case "Spring": return A6(spring,s,_p0._0,_p0._1,_p0._2,dt,p);
          default: return A4(gravity,s,_p0._0,dt,p);}
    });
-   var applyForces = F3(function (s,_p1,p) {
-      var _p2 = _p1;
-      var _p3 = _p2._0;
-      var p2 = A3(move,s,_p3,A3($List.foldl,A2(applyForce,s,_p3),p,_p2._1));
-      return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p3,_1: {ctor: "_Tuple2",_0: p2.x,_1: p2.px}},_1: p2};
+   var removeOnceOnlyForces = $List.filter(function (f) {
+      var _p1 = f;
+      switch (_p1.ctor)
+      {case "Drag": return false;
+         case "Kick": return false;
+         default: return true;}
+   });
+   var applyForces = F3(function (s,_p2,p) {
+      var _p3 = _p2;
+      var _p4 = _p3._0;
+      var p2 = A3(move,s,_p4,A3($List.foldl,A2(applyForce,s,_p4),p,_p3._1));
+      return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p4,_1: {ctor: "_Tuple2",_0: p2.x,_1: p2.px}},_1: p2};
    });
    var bind = F4(function (s,p,focus,forces) {
       return A2($GenAnim.animateWith,
       p,
-      F2(function (_p4,p) {
-         var _p5 = _p4;
-         var _p8 = _p5._1;
-         var _p7 = _p5._0;
-         var _p6 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p7,_1: forces(_p8)},p);
-         var p2 = _p6._0;
-         var px2 = _p6._1._1._0;
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p7,_1: A3($Focus.set,focus,px2,_p8)},_1: p2};
+      F2(function (_p5,p) {
+         var _p6 = _p5;
+         var _p9 = _p6._1;
+         var _p8 = _p6._0;
+         var _p7 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p8,_1: forces(_p9)},p);
+         var p2 = _p7._0;
+         var px2 = _p7._1._1._0;
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p8,_1: A3($Focus.set,focus,px2,_p9)},_1: p2};
       }));
    });
-   var particle = F4(function (s,mass,x,vx) {    return A2($GenAnim.animateWith,{mass: mass,x: x,px: A2(s.scale,mass,vx),dpx: s.zero},applyForces(s));});
    var Gravity = function (a) {    return {ctor: "Gravity",_0: a};};
    var Spring = F3(function (a,b,c) {    return {ctor: "Spring",_0: a,_1: b,_2: c};});
    var Friction = F2(function (a,b) {    return {ctor: "Friction",_0: a,_1: b};});
@@ -11277,8 +11283,29 @@ Elm.Physics.make = function (_elm) {
    var SomeForce = function (a) {    return {ctor: "SomeForce",_0: a};};
    var Drag = function (a) {    return {ctor: "Drag",_0: a};};
    var ParticleState = F4(function (a,b,c,d) {    return {mass: a,x: b,px: c,dpx: d};});
-   var momentum = function (_p9) {    var _p10 = _p9;return _p10._1;};
-   var position = function (_p11) {    var _p12 = _p11;return _p12._0;};
+   var samplingInterval = 1.0 / 60.0;
+   var maxTimeGap = 10.0 * samplingInterval;
+   var applyForces$ = F4(function (i,s,_p10,p) {
+      applyForces$: while (true) {
+         var _p11 = _p10;
+         var _p15 = _p11._1;
+         var _p14 = _p11._0;
+         if (_U.cmp(_p14,maxTimeGap) > 0) {
+               var _v5 = i,_v6 = s,_v7 = {ctor: "_Tuple2",_0: maxTimeGap - samplingInterval,_1: _p15},_v8 = p;
+               i = _v5;
+               s = _v6;
+               _p10 = _v7;
+               p = _v8;
+               continue applyForces$;
+            } else if (_U.cmp(_p14,samplingInterval) > 0) return function (_p12) {
+                  var _p13 = _p12;
+                  return A4(applyForces$,i + 1,s,{ctor: "_Tuple2",_0: _p14 - samplingInterval,_1: _U.cmp(i,0) > 0 ? _p15 : removeOnceOnlyForces(_p15)},_p13._1);
+               }(A3(applyForces,s,{ctor: "_Tuple2",_0: samplingInterval,_1: _p15},p)); else return A3(applyForces,s,{ctor: "_Tuple2",_0: _p14,_1: _p15},p);
+      }
+   });
+   var particle = F4(function (s,mass,x,vx) {    return A2($GenAnim.animateWith,{mass: mass,x: x,px: A2(s.scale,mass,vx),dpx: s.zero},A2(applyForces$,0,s));});
+   var momentum = function (_p16) {    var _p17 = _p16;return _p17._1;};
+   var position = function (_p18) {    var _p19 = _p18;return _p19._0;};
    return _elm.Physics.values = {_op: _op
                                 ,particle: particle
                                 ,position: position
@@ -11435,143 +11462,91 @@ Elm.Anima.make = function (_elm) {
    $Time = Elm.Time.make(_elm),
    $Window = Elm.Window.make(_elm);
    var _op = {};
-   var applyPicker = F5(function (picker,setItems,tracker,forces,particleColl) {
-      var update = F2(function (_p1,_p0) {
-         var _p2 = _p1;
-         var _p10 = _p2._0;
-         var _p9 = _p2._1;
-         var _p3 = _p0;
-         var _p4 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p10,_1: _p9},_p3._1);
-         var forces$ = _p4._0;
-         var dirForces = _p4._1._1;
-         var _p5 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p10,_1: tracker(_p9)},_p3._0);
-         var picker$ = _p5._0;
-         var mDelta = _p5._1._1._0;
-         var pickerAction = _p5._1._1._1;
-         var dirForces$ = function () {
-            var _p6 = mDelta;
-            if (_p6.ctor === "Just") {
-                  return A3($Dict.update,
-                  _p6._0._0,
-                  function (v) {
-                     var _p7 = v;
-                     if (_p7.ctor === "Just") {
-                           return $Maybe.Just(A2($Basics._op["++"],_p7._0,_U.list([$Physics.Drag(_p6._0._1)])));
-                        } else {
-                           return $Maybe.Nothing;
-                        }
-                  },
-                  dirForces);
-               } else {
-                  return dirForces;
-               }
-         }();
-         var _p8 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p10,_1: dirForces$},_p3._2);
-         var particleColl$ = _p8._0;
-         var result = _p8._1._1;
-         return {ctor: "_Tuple2"
-                ,_0: {ctor: "_Tuple2",_0: _p10,_1: A3(setItems,pickerAction,result,_p9)}
-                ,_1: {ctor: "_Tuple3",_0: picker$,_1: forces$,_2: particleColl$}};
-      });
-      var automaton = A2($Automaton.hiddenState,{ctor: "_Tuple3",_0: picker,_1: forces,_2: particleColl},update);
-      return automaton;
-   });
+   var dictItem = function () {
+      var setPos = F3(function (k,updater,dict) {    return A3($Dict.update,k,$Maybe.map(updater),dict);});
+      var getPos = F3(function ($default,k,dict) {    return A2($Maybe.withDefault,$default,A2($Dict.get,k,dict));});
+      var fn = F2(function ($default,k) {    return A2($Focus.create,A2(getPos,$default,k),setPos(k));});
+      return fn;
+   }();
    var particleColl = F3(function (field,items,particles) {
       return A2($Automaton.hiddenState,
       {ctor: "_Tuple2",_0: items,_1: particles},
-      F2(function (_p12,_p11) {
-         var _p13 = _p12;
-         var _p23 = _p13._0;
-         var _p14 = _p11;
-         var distributeForces = F3(function (key,forces,_p15) {
-            var _p16 = _p15;
-            var _p21 = _p16._1;
-            var _p20 = _p16._0;
-            var _p17 = A2($Dict.get,key,_p21);
-            if (_p17.ctor === "Just") {
-                  var _p18 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p23,_1: forces},_p17._0);
-                  var p$ = _p18._0;
-                  var pos$ = _p18._1._1._0;
+      F2(function (_p1,_p0) {
+         var _p2 = _p1;
+         var _p12 = _p2._0;
+         var _p3 = _p0;
+         var distributeForces = F3(function (key,forces,_p4) {
+            var _p5 = _p4;
+            var _p10 = _p5._1;
+            var _p9 = _p5._0;
+            var _p6 = A2($Dict.get,key,_p10);
+            if (_p6.ctor === "Just") {
+                  var _p7 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p12,_1: forces},_p6._0);
+                  var p$ = _p7._0;
+                  var pos$ = _p7._1._1._0;
                   var updatePos = function (mPrevPos) {
-                     var _p19 = mPrevPos;
-                     if (_p19.ctor === "Just") {
-                           return $Maybe.Just(A3($Focus.set,field,pos$,_p19._0));
+                     var _p8 = mPrevPos;
+                     if (_p8.ctor === "Just") {
+                           return $Maybe.Just(A3($Focus.set,field,pos$,_p8._0));
                         } else {
                            return $Maybe.Nothing;
                         }
                   };
-                  var nextItems = A3($Dict.update,key,updatePos,_p20);
-                  return {ctor: "_Tuple2",_0: nextItems,_1: A3($Dict.insert,key,p$,_p21)};
+                  var nextItems = A3($Dict.update,key,updatePos,_p9);
+                  return {ctor: "_Tuple2",_0: nextItems,_1: A3($Dict.insert,key,p$,_p10)};
                } else {
-                  return {ctor: "_Tuple2",_0: _p20,_1: _p21};
+                  return {ctor: "_Tuple2",_0: _p9,_1: _p10};
                }
          });
-         var _p22 = A3($Dict.foldl,distributeForces,{ctor: "_Tuple2",_0: _p14._0,_1: _p14._1},_p13._1);
-         var pos$ = _p22._0;
-         var particles$ = _p22._1;
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p23,_1: pos$},_1: {ctor: "_Tuple2",_0: pos$,_1: particles$}};
+         var _p11 = A3($Dict.foldl,distributeForces,{ctor: "_Tuple2",_0: _p3._0,_1: _p3._1},_p2._1);
+         var pos$ = _p11._0;
+         var particles$ = _p11._1;
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p12,_1: pos$},_1: {ctor: "_Tuple2",_0: pos$,_1: particles$}};
       }));
    });
    var DropItem = {ctor: "DropItem"};
    var MoveItem = {ctor: "MoveItem"};
-   var PickupItem = function (a) {    return {ctor: "PickupItem",_0: a};};
-   var logMaybe = F2(function (str,maybe) {
-      var _p24 = maybe;
-      if (_p24.ctor === "Just") {
-            switch (_p24._0.ctor)
-            {case "PickupItem": return $Maybe.Just(A2($Debug.log,str,PickupItem(_p24._0._0)));
-               case "DropItem": return $Maybe.Just(A2($Debug.log,str,DropItem));
-               default: return $Maybe.Just(MoveItem);}
-         } else {
-            return $Maybe.Nothing;
-         }
-   });
    var picker = function () {
       var noForce = $Space.f2d.zero;
-      var updater = F2(function (_p25,state) {
+      var updater = F2(function (_p13,state) {
          updater: while (true) {
-            var _p26 = _p25;
-            var _p33 = _p26._1._0;
-            var _p32 = _p26._0;
-            var _p27 = A2(logMaybe,"action",_p26._1._1);
-            if (_p27.ctor === "Just") {
-                  switch (_p27._0.ctor)
-                  {case "PickupItem": var _p29 = _p27._0._0;
-                       var _p28 = state;
-                       if (_p28.ctor === "Just") {
-                             var _v13 = {ctor: "_Tuple2",_0: _p32,_1: {ctor: "_Tuple2",_0: _p33,_1: $Maybe.Just(MoveItem)}},_v14 = state;
-                             _p25 = _v13;
-                             state = _v14;
+            var _p14 = _p13;
+            var _p20 = _p14._0;
+            var _p15 = _p14._1;
+            if (_p15.ctor === "Just") {
+                  switch (_p15._0.ctor)
+                  {case "PickupItem": var _p17 = _p15._0._0;
+                       var _p16 = state;
+                       if (_p16.ctor === "Just") {
+                             var _v8 = {ctor: "_Tuple2",_0: _p20,_1: $Maybe.Just(MoveItem)},_v9 = state;
+                             _p13 = _v8;
+                             state = _v9;
                              continue updater;
                           } else {
                              return {ctor: "_Tuple2"
-                                    ,_0: {ctor: "_Tuple2"
-                                         ,_0: _p32
-                                         ,_1: {ctor: "_Tuple2",_0: $Maybe.Just({ctor: "_Tuple2",_0: _p29,_1: noForce}),_1: $Maybe.Just(PickupItem(_p29))}}
-                                    ,_1: $Maybe.Just({ctor: "_Tuple2",_0: _p29,_1: _p33})};
+                                    ,_0: $Maybe.Just({ctor: "_Tuple3",_0: _p17,_1: noForce,_2: true})
+                                    ,_1: $Maybe.Just({ctor: "_Tuple2",_0: _p17,_1: _p20})};
                           }
-                     case "MoveItem": var _p30 = state;
-                       if (_p30.ctor === "Just") {
-                             var _p31 = _p30._0._0;
+                     case "MoveItem": var _p18 = state;
+                       if (_p18.ctor === "Just") {
                              return {ctor: "_Tuple2"
-                                    ,_0: {ctor: "_Tuple2"
-                                         ,_0: _p32
-                                         ,_1: {ctor: "_Tuple2"
-                                              ,_0: $Maybe.Just({ctor: "_Tuple2",_0: _p31,_1: A2($Space.f2d.sub,_p33,_p30._0._1)})
-                                              ,_1: $Maybe.Just(MoveItem)}}
-                                    ,_1: $Maybe.Just({ctor: "_Tuple2",_0: _p31,_1: _p33})};
+                                    ,_0: $Maybe.Just({ctor: "_Tuple3",_0: _p18._0._0,_1: A2($Space.f2d.sub,_p20,_p18._0._1),_2: true})
+                                    ,_1: state};
                           } else {
-                             return {ctor: "_Tuple2"
-                                    ,_0: {ctor: "_Tuple2",_0: _p32,_1: {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: $Maybe.Nothing}}
-                                    ,_1: $Maybe.Nothing};
+                             return {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: state};
                           }
-                     default: return A2($Debug.log,
-                       "meow",
-                       {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p32,_1: {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: $Maybe.Just(DropItem)}},_1: $Maybe.Nothing});}
+                     default: var _p19 = state;
+                       if (_p19.ctor === "Just") {
+                             return {ctor: "_Tuple2"
+                                    ,_0: $Maybe.Just({ctor: "_Tuple3",_0: _p19._0._0,_1: A2($Space.f2d.sub,_p20,_p19._0._1),_2: false})
+                                    ,_1: $Maybe.Nothing};
+                          } else {
+                             return {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: state};
+                          }}
                } else {
-                  var _v16 = {ctor: "_Tuple2",_0: _p32,_1: {ctor: "_Tuple2",_0: _p33,_1: $Maybe.Just(MoveItem)}},_v17 = state;
-                  _p25 = _v16;
-                  state = _v17;
+                  var _v12 = {ctor: "_Tuple2",_0: _p20,_1: $Maybe.Just(MoveItem)},_v13 = state;
+                  _p13 = _v12;
+                  state = _v13;
                   continue updater;
                }
          }
@@ -11579,35 +11554,48 @@ Elm.Anima.make = function (_elm) {
       var automaton = A2($Automaton.hiddenState,$Maybe.Nothing,updater);
       return automaton;
    }();
+   var PickupItem = function (a) {    return {ctor: "PickupItem",_0: a};};
+   var logMaybe = F2(function (str,maybe) {
+      var _p21 = maybe;
+      if (_p21.ctor === "Just") {
+            switch (_p21._0.ctor)
+            {case "PickupItem": return $Maybe.Just(A2($Debug.log,str,PickupItem(_p21._0._0)));
+               case "DropItem": return $Maybe.Just(A2($Debug.log,str,DropItem));
+               default: return $Maybe.Just(MoveItem);}
+         } else {
+            return $Maybe.Nothing;
+         }
+   });
    var animateRec = F2(function (recOut,anims) {
-      var outFilter = $Automaton.pure(function (_p34) {    var _p35 = _p34;return {ctor: "_Tuple2",_0: _p35._0,_1: _p35._1._1};});
-      var inFilter = $Automaton.pure(function (_p36) {    var _p37 = _p36;return {ctor: "_Tuple2",_0: _p37._0,_1: {ctor: "_Tuple2",_0: _p37._1,_1: recOut}};});
+      var outFilter = $Automaton.pure(function (_p22) {    var _p23 = _p22;return {ctor: "_Tuple2",_0: _p23._0,_1: _p23._1._1};});
+      var inFilter = $Automaton.pure(function (_p24) {    var _p25 = _p24;return {ctor: "_Tuple2",_0: _p25._0,_1: {ctor: "_Tuple2",_0: _p25._1,_1: recOut}};});
       return A2($Automaton._op[">>>"],inFilter,A3($List.foldl,F2(function (x,y) {    return A2($Automaton._op[">>>"],x,y);}),outFilter,anims));
    });
    var y_ = A2($Focus.create,function (_) {    return _.y;},F2(function (f,rec) {    return _U.update(rec,{y: f(rec.y)});}));
    var x_ = A2($Focus.create,function (_) {    return _.x;},F2(function (f,rec) {    return _U.update(rec,{x: f(rec.x)});}));
    var data_ = A2($Focus.create,function (_) {    return _.data;},F2(function (f,rec) {    return _U.update(rec,{data: f(rec.data)});}));
-   var dropTimeStep = function (anim) {    return A2($Automaton._op[">>>"],anim,$Automaton.pure(function (_p38) {    var _p39 = _p38;return _p39._1;}));};
+   var dropTimeStep = function (anim) {    return A2($Automaton._op[">>>"],anim,$Automaton.pure(function (_p26) {    var _p27 = _p26;return _p27._1;}));};
    var copyProp = F2(function (focIn,focOut) {
-      return $Automaton.pure(function (_p40) {
-         var _p41 = _p40;
-         var _p42 = _p41._1._0;
-         return {ctor: "_Tuple2",_0: _p41._0,_1: {ctor: "_Tuple2",_0: _p42,_1: A3($Focus.set,focOut,A2($Focus.get,focIn,_p42),_p41._1._1)}};
+      return $Automaton.pure(function (_p28) {
+         var _p29 = _p28;
+         var _p30 = _p29._1._0;
+         return {ctor: "_Tuple2",_0: _p29._0,_1: {ctor: "_Tuple2",_0: _p30,_1: A3($Focus.set,focOut,A2($Focus.get,focIn,_p30),_p29._1._1)}};
       });
    });
-   var pure = function (f) {    return $Automaton.pure(function (_p43) {    var _p44 = _p43;return {ctor: "_Tuple2",_0: _p44._0,_1: f(_p44._1)};});};
+   var pure = function (f) {    return $Automaton.pure(function (_p31) {    var _p32 = _p31;return {ctor: "_Tuple2",_0: _p32._0,_1: f(_p32._1)};});};
    var pureData = function (f) {
-      return $Automaton.pure(function (_p45) {
-         var _p46 = _p45;
-         var _p47 = _p46._1;
-         return {ctor: "_Tuple2",_0: _p46._0,_1: {env: _p47.env,data: f(_p47.data)}};
+      return $Automaton.pure(function (_p33) {
+         var _p34 = _p33;
+         var _p35 = _p34._1;
+         return {ctor: "_Tuple2",_0: _p34._0,_1: {env: _p35.env,data: f(_p35.data)}};
       });
    };
+   var copyTasks = F2(function (from,to) {    var env = to.env;return _U.update(to,{env: _U.update(env,{tasks: from.env.tasks})});});
    var clearTasks = function (dir) {    var env = dir.env;return _U.update(dir,{env: _U.update(env,{tasks: _U.list([])})});};
    var convertModeller = F3(function (modeller,einput,model) {
-      var _p48 = einput;
-      if (_p48.ctor === "UserEvent") {
-            return A2(modeller,_p48._0,model);
+      var _p36 = einput;
+      if (_p36.ctor === "UserEvent") {
+            return A2(modeller,_p36._0,model);
          } else {
             return model;
          }
@@ -11616,9 +11604,9 @@ Elm.Anima.make = function (_elm) {
    var animationNeeded = $Signal.constant(true);
    var frames = A2($Time.fpsWhen,60,animationNeeded);
    var timeStep = function (e) {
-      var _p49 = e;
-      if (_p49.ctor === "EnvEvent" && _p49._0.ctor === "TimeStep") {
-            return $Maybe.Just(_p49._0._0);
+      var _p37 = e;
+      if (_p37.ctor === "EnvEvent" && _p37._0.ctor === "TimeStep") {
+            return $Maybe.Just(_p37._0._0);
          } else {
             return $Maybe.Nothing;
          }
@@ -11626,27 +11614,27 @@ Elm.Anima.make = function (_elm) {
    var withMousePos = F2(function (pos,rec) {    var env = rec.env;return _U.update(rec,{env: _U.update(env,{mousePos: pos})});});
    var withTimeStep = F2(function (dt,rec) {    var env = rec.env;return _U.update(rec,{env: _U.update(env,{dt: dt,time: env.time + dt})});});
    var withWindowSize = F3(function (w,h,rec) {    var env = rec.env;return _U.update(rec,{env: _U.update(env,{width: w,height: h})});});
-   var convertDirector = F3(function (director,_p50,dir) {
-      var _p51 = _p50;
-      var _p54 = _p51._0;
+   var convertDirector = F3(function (director,_p38,dir) {
+      var _p39 = _p38;
+      var _p42 = _p39._0;
       var dir0 = A2(withTimeStep,0.0,dir);
       var dir1 = function () {
-         var _p52 = _p54;
-         if (_p52.ctor === "EnvEvent") {
-               switch (_p52._0.ctor)
-               {case "ResizeWindow": return A3(withWindowSize,_p52._0._0,_p52._0._1,dir0);
-                  case "TimeStep": return A2(withTimeStep,_p52._0._0,dir0);
-                  default: return A2(withMousePos,{ctor: "_Tuple2",_0: $Basics.toFloat(_p52._0._0),_1: $Basics.toFloat(_p52._0._1)},dir0);}
+         var _p40 = _p42;
+         if (_p40.ctor === "EnvEvent") {
+               switch (_p40._0.ctor)
+               {case "ResizeWindow": return A3(withWindowSize,_p40._0._0,_p40._0._1,dir0);
+                  case "TimeStep": return A2(withTimeStep,_p40._0._0,dir0);
+                  default: return A2(withMousePos,{ctor: "_Tuple2",_0: $Basics.toFloat(_p40._0._0),_1: $Basics.toFloat(_p40._0._1)},dir0);}
             } else {
                return dir0;
             }
       }();
       var dir2 = function () {
-         var _p53 = _p54;
-         if (_p53.ctor === "UserEvent") {
-               return A2(director,{ctor: "_Tuple2",_0: _p53._0,_1: _p51._1},dir1);
+         var _p41 = _p42;
+         if (_p41.ctor === "UserEvent") {
+               return A2(director,{ctor: "_Tuple2",_0: _p41._0,_1: _p39._1},dir1);
             } else {
-               return dir1;
+               return clearTasks(dir1);
             }
       }();
       return {ctor: "_Tuple2",_0: dir2,_1: dir2};
@@ -11659,9 +11647,9 @@ Elm.Anima.make = function (_elm) {
    var UserEvent = function (a) {    return {ctor: "UserEvent",_0: a};};
    var EnvEvent = function (a) {    return {ctor: "EnvEvent",_0: a};};
    var MousePos = F2(function (a,b) {    return {ctor: "MousePos",_0: a,_1: b};});
-   var mousePositionEvents = A2($Signal.map,function (_p55) {    var _p56 = _p55;return EnvEvent(A2(MousePos,_p56._0,_p56._1));},$Mouse.position);
+   var mousePositionEvents = A2($Signal.map,function (_p43) {    var _p44 = _p43;return EnvEvent(A2(MousePos,_p44._0,_p44._1));},$Mouse.position);
    var ResizeWindow = F2(function (a,b) {    return {ctor: "ResizeWindow",_0: a,_1: b};});
-   var windowResizeEvents = A2($Signal.map,function (_p57) {    var _p58 = _p57;return EnvEvent(A2(ResizeWindow,_p58._0,_p58._1));},$Window.dimensions);
+   var windowResizeEvents = A2($Signal.map,function (_p45) {    var _p46 = _p45;return EnvEvent(A2(ResizeWindow,_p46._0,_p46._1));},$Window.dimensions);
    var TimeStep = function (a) {    return {ctor: "TimeStep",_0: a};};
    var timeStepEvents = A2($Signal.map,function (dt) {    return EnvEvent(TimeStep($Time.inSeconds(dt)));},frames);
    var mergeEnvironmentChanges = function (sig) {
@@ -11711,25 +11699,24 @@ Elm.Anima.make = function (_elm) {
    var controllerProc = F4(function (timeStep,director,animator,vs0) {
       return A2(animateWith,
       {ctor: "_Tuple3",_0: director,_1: animator,_2: vs0},
-      F2(function (_p60,_p59) {
-         var _p61 = _p60;
-         var _p68 = _p61._0;
-         var _p62 = _p59;
-         var _p67 = _p62._1;
-         var _p63 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p68,_1: _p61._1},_p62._0);
-         var director2 = _p63._0;
-         var dir = _p63._1;
-         var _p64 = timeStep(_p68);
-         if (_p64.ctor === "Just") {
-               var _p65 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p64._0,_1: dir},_p67);
-               var animator2 = _p65._0;
-               var vs2 = _p65._1;
-               return {ctor: "_Tuple2",_0: vs2,_1: {ctor: "_Tuple3",_0: director2,_1: animator2,_2: clearTasks(vs2)}};
+      F2(function (_p48,_p47) {
+         var _p49 = _p48;
+         var _p56 = _p49._0;
+         var _p50 = _p47;
+         var _p55 = _p50._2;
+         var _p54 = _p50._1;
+         var _p51 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p56,_1: _p49._1},_p50._0);
+         var director2 = _p51._0;
+         var dir = _p51._1;
+         var tasks = dir.env.tasks;
+         var _p52 = timeStep(_p56);
+         if (_p52.ctor === "Just") {
+               var _p53 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p52._0,_1: dir},_p54);
+               var animator2 = _p53._0;
+               var vs2 = _p53._1;
+               return {ctor: "_Tuple2",_0: A2(copyTasks,dir,vs2),_1: {ctor: "_Tuple3",_0: director2,_1: animator2,_2: vs2}};
             } else {
-               var _p66 = A2($Automaton.step,{ctor: "_Tuple2",_0: 1.5e-2,_1: dir},_p67);
-               var animator2 = _p66._0;
-               var vs2 = _p66._1;
-               return {ctor: "_Tuple2",_0: vs2,_1: {ctor: "_Tuple3",_0: director2,_1: animator2,_2: clearTasks(vs2)}};
+               return {ctor: "_Tuple2",_0: A2(copyTasks,dir,_p55),_1: {ctor: "_Tuple3",_0: director2,_1: _p54,_2: _p55}};
             }
       }));
    });
@@ -11737,26 +11724,26 @@ Elm.Anima.make = function (_elm) {
       var controllerr = A4(controllerProc,app.timeStep,app.director,dropTimeStep(app.animator),app.initial.viewstate);
       var combined = A2($Automaton.hiddenState,
       {ctor: "_Tuple2",_0: app,_1: controllerr},
-      F2(function (input,_p69) {
-         var _p70 = _p69;
-         var _p74 = _p70._0;
-         var _p71 = A2($Automaton.step,input,_p74.modeller);
-         var modeller$ = _p71._0;
-         var model = _p71._1;
-         var _p72 = A2($Automaton.step,{ctor: "_Tuple2",_0: input,_1: model},_p70._1);
-         var controller$ = _p72._0;
-         var viewstate = _p72._1;
-         var _p73 = A2($Automaton.step,{ctor: "_Tuple2",_0: model,_1: viewstate},_p74.viewer);
-         var viewer$ = _p73._0;
-         var view = _p73._1;
+      F2(function (input,_p57) {
+         var _p58 = _p57;
+         var _p62 = _p58._0;
+         var _p59 = A2($Automaton.step,input,_p62.modeller);
+         var modeller$ = _p59._0;
+         var model = _p59._1;
+         var _p60 = A2($Automaton.step,{ctor: "_Tuple2",_0: input,_1: model},_p58._1);
+         var controller$ = _p60._0;
+         var viewstate = _p60._1;
+         var _p61 = A2($Automaton.step,{ctor: "_Tuple2",_0: model,_1: viewstate},_p62.viewer);
+         var viewer$ = _p61._0;
+         var view = _p61._1;
          return {ctor: "_Tuple2"
                 ,_0: {ctor: "_Tuple2",_0: view,_1: viewstate.env.tasks}
-                ,_1: {ctor: "_Tuple2",_0: _U.update(_p74,{modeller: modeller$,viewer: viewer$}),_1: controller$}};
+                ,_1: {ctor: "_Tuple2",_0: _U.update(_p62,{modeller: modeller$,viewer: viewer$}),_1: controller$}};
       }));
       var input = mergeEnvironmentChanges(userInput);
       var viewAndTasksSig = A3($Automaton.run,combined,{ctor: "_Tuple2",_0: app.initial.view,_1: _U.list([])},input);
       return {ctor: "_Tuple2"
-             ,_0: A2($Signal.map,function (_p75) {    var _p76 = _p75;return _p76._0;},viewAndTasksSig)
+             ,_0: A2($Signal.map,function (_p63) {    var _p64 = _p63;return _p64._0;},viewAndTasksSig)
              ,_1: A3($Signal.filterMap,
              function (tasks) {
                 return _U.cmp($List.length(tasks),0) > 0 ? $Maybe.Just(A2($Task.andThen,
@@ -11766,50 +11753,50 @@ Elm.Anima.make = function (_elm) {
                 })) : $Maybe.Nothing;
              },
              $Task.succeed({ctor: "_Tuple0"}),
-             A2($Signal.map,function (_p77) {    var _p78 = _p77;return _p78._1;},viewAndTasksSig))};
+             A2($Signal.map,function (_p65) {    var _p66 = _p65;return _p66._1;},viewAndTasksSig))};
    });
    var runOpinionatedApp = F2(function (app,userInput) {    return A2(runApp,appify(app),userInput);});
    var animProp = F3(function (focIn,focOut,anim) {
       return A2(animateWith,
       anim,
-      F2(function (_p79,anim) {
-         var _p80 = _p79;
-         var _p83 = _p80._1._0;
-         var _p82 = _p80._0;
-         var dir1 = A2($Focus.get,focIn,_p83);
-         var _p81 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p82,_1: dir1},anim);
-         var anim2 = _p81._0;
-         var space1 = _p81._1._1;
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p82,_1: {ctor: "_Tuple2",_0: _p83,_1: A3($Focus.set,focOut,space1,_p80._1._1)}},_1: anim2};
+      F2(function (_p67,anim) {
+         var _p68 = _p67;
+         var _p71 = _p68._1._0;
+         var _p70 = _p68._0;
+         var dir1 = A2($Focus.get,focIn,_p71);
+         var _p69 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p70,_1: dir1},anim);
+         var anim2 = _p69._0;
+         var space1 = _p69._1._1;
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p70,_1: {ctor: "_Tuple2",_0: _p71,_1: A3($Focus.set,focOut,space1,_p68._1._1)}},_1: anim2};
       }));
    });
    var animPropInline = F2(function (foc,anim) {
       return A2(animateWith,
       anim,
-      F2(function (_p84,anim) {
-         var _p85 = _p84;
-         var _p88 = _p85._1._0;
-         var _p87 = _p85._0;
-         var dir1 = A2($Focus.get,foc,_p88);
-         var _p86 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p87,_1: dir1},anim);
-         var anim2 = _p86._0;
-         var space1 = _p86._1._1;
-         var rec2 = A3($Focus.set,foc,space1,_p88);
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p87,_1: {ctor: "_Tuple2",_0: rec2,_1: rec2}},_1: anim2};
+      F2(function (_p72,anim) {
+         var _p73 = _p72;
+         var _p76 = _p73._1._0;
+         var _p75 = _p73._0;
+         var dir1 = A2($Focus.get,foc,_p76);
+         var _p74 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p75,_1: dir1},anim);
+         var anim2 = _p74._0;
+         var space1 = _p74._1._1;
+         var rec2 = A3($Focus.set,foc,space1,_p76);
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p75,_1: {ctor: "_Tuple2",_0: rec2,_1: rec2}},_1: anim2};
       }));
    });
    var filterProp = F2(function (focus,anim) {
       return A2(animateWith,
       anim,
-      F2(function (_p89,anim) {
-         var _p90 = _p89;
-         var _p93 = _p90._1;
-         var _p92 = _p90._0;
-         var dir1 = A2($Focus.get,focus,_p93);
-         var _p91 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p92,_1: dir1},anim);
-         var anim2 = _p91._0;
-         var space1 = _p91._1._1;
-         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p92,_1: A3($Focus.set,focus,space1,_p93)},_1: anim2};
+      F2(function (_p77,anim) {
+         var _p78 = _p77;
+         var _p81 = _p78._1;
+         var _p80 = _p78._0;
+         var dir1 = A2($Focus.get,focus,_p81);
+         var _p79 = A2($Automaton.step,{ctor: "_Tuple2",_0: _p80,_1: dir1},anim);
+         var anim2 = _p79._0;
+         var space1 = _p79._1._1;
+         return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p80,_1: A3($Focus.set,focus,space1,_p81)},_1: anim2};
       }));
    });
    var timeKeeper = function (t0) {    return A2($Automaton.state,t0,F2(function (x,y) {    return x + y;}));};
@@ -11874,6 +11861,7 @@ Elm.Anima.make = function (_elm) {
                               ,procWithUpdater: procWithUpdater
                               ,controllerProc: controllerProc
                               ,clearTasks: clearTasks
+                              ,copyTasks: copyTasks
                               ,pureData: pureData
                               ,pure: pure
                               ,animProp: animProp
@@ -11891,7 +11879,7 @@ Elm.Anima.make = function (_elm) {
                               ,picker: picker
                               ,logMaybe: logMaybe
                               ,particleColl: particleColl
-                              ,applyPicker: applyPicker};
+                              ,dictItem: dictItem};
 };Elm.LabelItem = Elm.LabelItem || {};
 Elm.LabelItem.make = function (_elm) {
    "use strict";
@@ -11924,47 +11912,50 @@ Elm.LabelItem.make = function (_elm) {
    };
    var veggiesDelta = {ctor: "_Tuple2",_0: pt2px(0.0),_1: pt2px(36.0)};
    var veggiePos = function (i) {    return A3($Space.f2d.madd,$Basics.toFloat(i),veggiesDelta,veggiesOffset);};
-   var veggieIndex = function (_p4) {
-      var _p5 = _p4;
-      var _p6 = veggiesDelta;
-      var dy = _p6._1;
-      var _p7 = veggiesOffset;
-      var y0 = _p7._1;
-      return $Basics.floor((_p5._1 - y0) / dy + 0.5);
+   var itemPos = function (item) {    var _p4 = item;if (_p4.ctor === "Fruit") {    return fruitPos(_p4._0);} else {    return veggiePos(_p4._0);}};
+   var veggieIndex = function (_p5) {
+      var _p6 = _p5;
+      var _p7 = veggiesDelta;
+      var dy = _p7._1;
+      var _p8 = veggiesOffset;
+      var y0 = _p8._1;
+      return $Basics.floor((_p6._1 - y0) / dy + 0.5);
    };
    var xMiddle = pt2px(0.5 * (30.0 + 230.0));
-   var isNearFruits = function (_p8) {    var _p9 = _p8;return _U.cmp(_p9._0,xMiddle) < 0;};
-   var isNearVeggies = function (_p10) {    var _p11 = _p10;return _U.cmp(_p11._0,xMiddle) > 0;};
-   var labelItem$ = F6(function (label,_p12,message,address,strKey,attrs) {
-      var _p13 = _p12;
+   var isNearFruits = function (_p9) {    var _p10 = _p9;return _U.cmp(_p10._0,xMiddle) < 0;};
+   var isNearVeggies = function (_p11) {    var _p12 = _p11;return _U.cmp(_p12._0,xMiddle) > 0;};
+   var labelItem$ = F7(function (label,_p13,message,address,strKey,styles,attrs) {
+      var _p14 = _p13;
       var clickHandler = function () {
-         var _p14 = message;
-         if (_p14.ctor === "Just") {
-               return _U.list([A2($Html$Events.onClick,address,_p14._0)]);
+         var _p15 = message;
+         if (_p15.ctor === "Just") {
+               return _U.list([A2($Html$Events.onClick,address,_p15._0)]);
             } else {
                return _U.list([]);
             }
       }();
       var tx = A2($Basics._op["++"],
       "translate3d(",
-      A2($Basics._op["++"],$Basics.toString(_p13._0),A2($Basics._op["++"],"px,",A2($Basics._op["++"],$Basics.toString(_p13._1),"px, 0px)"))));
+      A2($Basics._op["++"],$Basics.toString(_p14._0),A2($Basics._op["++"],"px,",A2($Basics._op["++"],$Basics.toString(_p14._1),"px, 0px)"))));
       return A2($Html.div,
       A2($Basics._op["++"],
-      _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "position",_1: "absolute"}
-                                              ,{ctor: "_Tuple2",_0: "left",_1: "0px"}
-                                              ,{ctor: "_Tuple2",_0: "top",_1: "0px"}
-                                              ,{ctor: "_Tuple2",_0: "-webkit-transform",_1: tx}
-                                              ,{ctor: "_Tuple2",_0: "-moz-transform",_1: tx}
-                                              ,{ctor: "_Tuple2",_0: "-ms-transform",_1: tx}
-                                              ,{ctor: "_Tuple2",_0: "transform",_1: tx}
-                                              ,{ctor: "_Tuple2",_0: "width",_1: "120pt"}
-                                              ,{ctor: "_Tuple2",_0: "height",_1: "30pt"}
-                                              ,{ctor: "_Tuple2",_0: "background",_1: "dodgerblue"}
-                                              ,{ctor: "_Tuple2",_0: "display",_1: "table"}
-                                              ,{ctor: "_Tuple2",_0: "text-align",_1: "center"}
-                                              ,{ctor: "_Tuple2",_0: "-webkit-user-select",_1: "none"}
-                                              ,{ctor: "_Tuple2",_0: "-moz-user-select",_1: "none"}
-                                              ,{ctor: "_Tuple2",_0: "-ms-user-select",_1: "none"}]))
+      _U.list([$Html$Attributes.style(A2($Basics._op["++"],
+              _U.list([{ctor: "_Tuple2",_0: "position",_1: "absolute"}
+                      ,{ctor: "_Tuple2",_0: "left",_1: "0px"}
+                      ,{ctor: "_Tuple2",_0: "top",_1: "0px"}
+                      ,{ctor: "_Tuple2",_0: "-webkit-transform",_1: tx}
+                      ,{ctor: "_Tuple2",_0: "-moz-transform",_1: tx}
+                      ,{ctor: "_Tuple2",_0: "-ms-transform",_1: tx}
+                      ,{ctor: "_Tuple2",_0: "transform",_1: tx}
+                      ,{ctor: "_Tuple2",_0: "width",_1: "120pt"}
+                      ,{ctor: "_Tuple2",_0: "height",_1: "30pt"}
+                      ,{ctor: "_Tuple2",_0: "background",_1: "dodgerblue"}
+                      ,{ctor: "_Tuple2",_0: "display",_1: "table"}
+                      ,{ctor: "_Tuple2",_0: "text-align",_1: "center"}
+                      ,{ctor: "_Tuple2",_0: "-webkit-user-select",_1: "none"}
+                      ,{ctor: "_Tuple2",_0: "-moz-user-select",_1: "none"}
+                      ,{ctor: "_Tuple2",_0: "-ms-user-select",_1: "none"}]),
+              styles))
               ,$Html$Attributes.key(strKey)]),
       A2($Basics._op["++"],clickHandler,attrs)),
       _U.list([A2($Html.span,
@@ -11973,8 +11964,12 @@ Elm.LabelItem.make = function (_elm) {
                                               ,{ctor: "_Tuple2",_0: "color",_1: "white"}]))]),
       _U.list([$Html.text(label)]))]));
    });
-   var labelItem = F5(function (label,pos,message,address,strKey) {    return A6(labelItem$,label,pos,message,address,strKey,_U.list([]));});
+   var labelItem = F5(function (label,pos,message,address,strKey) {    return A7(labelItem$,label,pos,message,address,strKey,_U.list([]),_U.list([]));});
+   var Veggie = function (a) {    return {ctor: "Veggie",_0: a};};
+   var Fruit = function (a) {    return {ctor: "Fruit",_0: a};};
    return _elm.LabelItem.values = {_op: _op
+                                  ,Fruit: Fruit
+                                  ,Veggie: Veggie
                                   ,labelItem: labelItem
                                   ,labelItem$: labelItem$
                                   ,pt2px: pt2px
@@ -11988,7 +11983,8 @@ Elm.LabelItem.make = function (_elm) {
                                   ,fruitIndex: fruitIndex
                                   ,veggieIndex: veggieIndex
                                   ,isNearFruits: isNearFruits
-                                  ,isNearVeggies: isNearVeggies};
+                                  ,isNearVeggies: isNearVeggies
+                                  ,itemPos: itemPos};
 };Elm.Veggies4 = Elm.Veggies4 || {};
 Elm.Veggies4.make = function (_elm) {
    "use strict";
@@ -12035,75 +12031,93 @@ Elm.Veggies4.make = function (_elm) {
          default: return A2($Basics._op["++"],$Basics.toString(n),A2($Basics._op["++"]," ",pluralize(noun)));}
    });
    var dispCount = F2(function (str,list) {    return A2(dispNum,$List.length(list),str);});
-   var suggestorLines = function (_p6) {
-      var _p7 = _p6;
-      var _p15 = _p7._1;
-      var _p8 = _p15.data.pickedItem;
-      if (_p8.ctor === "Just") {
-            var _p14 = _p8._0;
-            var labelInfo = A2($Dict.get,_p14,_p15.data.labels);
-            var _p9 = labelInfo;
-            if (_p9.ctor === "Just") {
-                  var _p13 = _p9._0;
-                  var line = F2(function (item,color) {
-                     var _p10 = function () {
-                        var _p11 = item;
-                        if (_p11.ctor === "Fruit") {
-                              return $LabelItem.fruitPos(_p11._0);
-                           } else {
-                              return $LabelItem.veggiePos(_p11._0);
-                           }
-                     }();
-                     var x = _p10._0;
-                     var y = _p10._1;
-                     return A2($Html.div,
-                     _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "position",_1: "absolute"}
-                                                             ,{ctor: "_Tuple2",_0: "height",_1: "2px"}
-                                                             ,{ctor: "_Tuple2",_0: "width",_1: "120pt"}
-                                                             ,{ctor: "_Tuple2",_0: "background",_1: color}
-                                                             ,{ctor: "_Tuple2",_0: "left",_1: A2($Basics._op["++"],$Basics.toString(x),"px")}
-                                                             ,{ctor: "_Tuple2",_0: "top",_1: A2($Basics._op["++"],$Basics.toString(y - 5.0),"px")}]))]),
-                     _U.list([]));
-                  });
-                  var _p12 = _p13;
-                  var x = _p12._0;
-                  var y = _p12._1;
-                  var dest = _p15.data.suggestor(_p13);
-                  var source = _p15.data.finder(_p14);
-                  return _U.list([A2(line,source,"lightgrey"),A2(line,dest,"black")]);
-               } else {
-                  return _U.list([]);
-               }
+   var line = F2(function (item,color) {
+      var _p6 = function () {
+         var _p7 = item;
+         if (_p7.ctor === "Fruit") {
+               return $LabelItem.fruitPos(_p7._0);
+            } else {
+               return $LabelItem.veggiePos(_p7._0);
+            }
+      }();
+      var x = _p6._0;
+      var y = _p6._1;
+      return A2($Html.div,
+      _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "position",_1: "absolute"}
+                                              ,{ctor: "_Tuple2",_0: "height",_1: "2px"}
+                                              ,{ctor: "_Tuple2",_0: "width",_1: "120pt"}
+                                              ,{ctor: "_Tuple2",_0: "background",_1: color}
+                                              ,{ctor: "_Tuple2",_0: "left",_1: A2($Basics._op["++"],$Basics.toString(x),"px")}
+                                              ,{ctor: "_Tuple2",_0: "top",_1: A2($Basics._op["++"],$Basics.toString(y - 5.0),"px")}]))]),
+      _U.list([]));
+   });
+   var suggestorLines = function (_p8) {
+      var _p9 = _p8;
+      var _p10 = _p9._1.data.suggestion;
+      if (_p10.ctor === "Just") {
+            return _U.list([A2(line,_p10._0._1,"lightgrey"),A2(line,_p10._0._2,"black")]);
          } else {
             return _U.list([]);
          }
    };
-   var self_ = A2($Focus.create,function (x) {    return x;},F2(function (fn,rec) {    return fn(rec);}));
+   var lift = F2(function (k,vs) {
+      var _p11 = vs.data.suggestion;
+      if (_p11.ctor === "Just") {
+            return _U.eq(k,_p11._0._0) ? _U.list([{ctor: "_Tuple2",_0: "zIndex",_1: "100"}]) : _U.list([]);
+         } else {
+            return _U.list([]);
+         }
+   });
+   var pos_ = A2($Focus.create,function (x) {    return x;},F2(function (fn,rec) {    return fn(rec);}));
    var labels_ = A2($Focus.create,function (_) {    return _.labels;},F2(function (fn,rec) {    return _U.update(rec,{labels: fn(rec.labels)});}));
+   var pickerDiff = function () {
+      var setPickerDiff = F2(function (pd,dir) {    var data = dir.data;return _U.update(dir,{data: _U.update(data,{pickerDelta: pd})});});
+      var updateDiff = F2(function (_p12,prev) {
+         var _p13 = _p12;
+         var _p18 = _p13._0;
+         var _p17 = _p13._1;
+         var _p14 = _p17.data.pickerOutput;
+         if (_p14.ctor === "Just") {
+               var _p16 = _p14._0._1;
+               var _p15 = prev;
+               if (_p15.ctor === "Just") {
+                     return {ctor: "_Tuple2"
+                            ,_0: {ctor: "_Tuple2",_0: _p18,_1: A2(setPickerDiff,$Maybe.Just(A2($Space.f2d.sub,_p16,_p15._0)),_p17)}
+                            ,_1: $Maybe.Just(_p16)};
+                  } else {
+                     return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p18,_1: A2(setPickerDiff,$Maybe.Just($Space.f2d.zero),_p17)},_1: $Maybe.Just(_p16)};
+                  }
+            } else {
+               return {ctor: "_Tuple2",_0: {ctor: "_Tuple2",_0: _p18,_1: A2(setPickerDiff,$Maybe.Nothing,_p17)},_1: $Maybe.Nothing};
+            }
+      });
+      return A2($Automaton.hiddenState,$Maybe.Nothing,updateDiff);
+   }();
    var springDamping = 12.0;
    var springK = 200.0;
+   var pickerAction = function (input) {    var _p19 = input;if (_p19.ctor === "DnD") {    return $Maybe.Just(_p19._0);} else {    return $Maybe.Nothing;}};
    var limit = F3(function (min,max,x) {    return _U.cmp(x,min) < 0 ? min : _U.cmp(x,max) > 0 ? max : x;});
    var directionForModel = F2(function (model,dict) {
-      var _p16 = A3($List.foldl,
-      F2(function (_p18,_p17) {
-         var _p19 = _p18;
-         var _p20 = _p17;
-         var _p21 = _p20._0;
-         return {ctor: "_Tuple2",_0: _p21 + 1,_1: A3($Dict.insert,_p19._0,$LabelItem.fruitPos(_p21),_p20._1)};
+      var _p20 = A3($List.foldl,
+      F2(function (_p22,_p21) {
+         var _p23 = _p22;
+         var _p24 = _p21;
+         var _p25 = _p24._0;
+         return {ctor: "_Tuple2",_0: _p25 + 1,_1: A3($Dict.insert,_p23._0,$LabelItem.fruitPos(_p25),_p24._1)};
       }),
       {ctor: "_Tuple2",_0: 0,_1: dict},
       model.fruits);
-      var fruitsDict = _p16._1;
-      var _p22 = A3($List.foldl,
-      F2(function (_p24,_p23) {
-         var _p25 = _p24;
-         var _p26 = _p23;
-         var _p27 = _p26._0;
-         return {ctor: "_Tuple2",_0: _p27 + 1,_1: A3($Dict.insert,_p25._0,$LabelItem.veggiePos(_p27),_p26._1)};
+      var fruitsDict = _p20._1;
+      var _p26 = A3($List.foldl,
+      F2(function (_p28,_p27) {
+         var _p29 = _p28;
+         var _p30 = _p27;
+         var _p31 = _p30._0;
+         return {ctor: "_Tuple2",_0: _p31 + 1,_1: A3($Dict.insert,_p29._0,$LabelItem.veggiePos(_p31),_p30._1)};
       }),
       {ctor: "_Tuple2",_0: 0,_1: fruitsDict},
       model.veggies);
-      var veggiesDict = _p22._1;
+      var veggiesDict = _p26._1;
       return veggiesDict;
    });
    var targetter = A2($Anima.springy2D,3.0,1.5);
@@ -12113,6 +12127,54 @@ Elm.Veggies4.make = function (_elm) {
                                        ,{ctor: "_Tuple2",_0: "four",_1: "Carrot"}
                                        ,{ctor: "_Tuple2",_0: "five",_1: "Broccoli"}])
                       ,veggies: _U.list([{ctor: "_Tuple2",_0: "six",_1: "Pear"},{ctor: "_Tuple2",_0: "seven",_1: "Pumpkin"}])};
+   var initial = function () {
+      var dir = {suggestion: $Maybe.Nothing
+                ,labels: A2(directionForModel,initialModel,$Dict.empty)
+                ,picker: $Anima.picker
+                ,pickerOutput: $Maybe.Nothing
+                ,pickerDelta: $Maybe.Nothing};
+      return {model: initialModel,direction: dir,viewstate: dir,view: $Html.text("Initializing ...")};
+   }();
+   var animator = function () {
+      var logEnabled = false;
+      var logInput = function (label) {
+         return $Automaton.pure(function (_p32) {
+            var _p33 = _p32;
+            var _p34 = _p33._1;
+            return {ctor: "_Tuple2",_0: _p33._0,_1: logEnabled ? A2($Debug.log,label,_p34) : _p34};
+         });
+      };
+      var passThrough = $Automaton.pure(function (x) {    return x;});
+      var chain = F3(function (key,anim,result) {    return A2($Automaton._op[">>>"],result,anim);});
+      var spring = F2(function (key,dir) {
+         var _p35 = A2($Dict.get,key,dir.data.labels);
+         if (_p35.ctor === "Just") {
+               return _U.list([A3($Physics.Spring,_p35._0,springK,springDamping)]);
+            } else {
+               return _U.list([]);
+            }
+      });
+      var force = F2(function (key,dir) {
+         var _p36 = {ctor: "_Tuple2",_0: dir.data.pickerOutput,_1: dir.data.pickerDelta};
+         if (_p36.ctor === "_Tuple2" && _p36._0.ctor === "Just" && _p36._0._0.ctor === "_Tuple3" && _p36._1.ctor === "Just") {
+               return _U.eq(key,_p36._0._0._0) ? _U.list([$Physics.Drag(_p36._1._0)]) : A2(spring,key,dir);
+            } else {
+               return A2(spring,key,dir);
+            }
+      });
+      var animation = F2(function (key,pos) {
+         return A4($Physics.bind,
+         $Space.f2d,
+         A4($Physics.particle,$Space.f2d,1.0,pos,$Space.f2d.zero),
+         A2($Focus._op["=>"],A2($Focus._op["=>"],$Anima.data_,labels_),A2($Anima.dictItem,$Space.f2d.zero,key)),
+         force(key));
+      });
+      var particles = A2($Dict.map,animation,initial.direction.labels);
+      var forceAnimator = A3($Dict.foldl,chain,passThrough,particles);
+      return A2($Automaton._op[">>>"],
+      A2($Automaton._op[">>>"],A2($Automaton._op[">>>"],logInput("animInput"),pickerDiff),forceAnimator),
+      logInput("animOutput"));
+   }();
    var insertItem = F3(function (item,toPos,list) {    return A2($List.append,A2($List.take,toPos,list),A2($List.append,item,A2($List.drop,toPos,list)));});
    var removeItem = F2(function (fromPos,list) {
       var t = A2($List.drop,fromPos,list);
@@ -12121,116 +12183,101 @@ Elm.Veggies4.make = function (_elm) {
    });
    var moveItem = F3(function (list,fromPos,toPos) {
       if (_U.eq(fromPos,toPos)) return list; else {
-            var _p28 = A2(removeItem,fromPos,list);
-            var item = _p28._0;
-            var target = _p28._1;
+            var _p37 = A2(removeItem,fromPos,list);
+            var item = _p37._0;
+            var target = _p37._1;
             return A3(insertItem,item,_U.cmp(fromPos,toPos) < 0 ? toPos - 1 : toPos,target);
          }
    });
    var modeller = F2(function (input,model) {
-      var _p29 = input;
-      if (_p29.ctor === "Move") {
-            if (_p29._0.ctor === "Fruit") {
-                  if (_p29._1.ctor === "Fruit") {
-                        return _U.update(model,{fruits: A3(moveItem,model.fruits,_p29._0._0,_p29._1._0)});
+      var _p38 = input;
+      if (_p38.ctor === "Move") {
+            if (_p38._0.ctor === "Fruit") {
+                  if (_p38._1.ctor === "Fruit") {
+                        return _U.update(model,{fruits: A3(moveItem,model.fruits,_p38._0._0,_p38._1._0)});
                      } else {
-                        var _p30 = A2(removeItem,_p29._0._0,model.fruits);
-                        var item = _p30._0;
-                        var rem = _p30._1;
-                        return _U.update(model,{fruits: rem,veggies: A3(insertItem,item,_p29._1._0,model.veggies)});
+                        var _p39 = A2(removeItem,_p38._0._0,model.fruits);
+                        var item = _p39._0;
+                        var rem = _p39._1;
+                        return _U.update(model,{fruits: rem,veggies: A3(insertItem,item,_p38._1._0,model.veggies)});
                      }
                } else {
-                  if (_p29._1.ctor === "Veggie") {
-                        return _U.update(model,{veggies: A3(moveItem,model.veggies,_p29._0._0,_p29._1._0)});
+                  if (_p38._1.ctor === "Veggie") {
+                        return _U.update(model,{veggies: A3(moveItem,model.veggies,_p38._0._0,_p38._1._0)});
                      } else {
-                        var _p31 = A2(removeItem,_p29._0._0,model.veggies);
-                        var item = _p31._0;
-                        var rem = _p31._1;
-                        return _U.update(model,{veggies: rem,fruits: A3(insertItem,item,_p29._1._0,model.fruits)});
+                        var _p40 = A2(removeItem,_p38._0._0,model.veggies);
+                        var item = _p40._0;
+                        var rem = _p40._1;
+                        return _U.update(model,{veggies: rem,fruits: A3(insertItem,item,_p38._1._0,model.fruits)});
                      }
                }
          } else {
             return model;
          }
    });
-   var Direction = F5(function (a,b,c,d,e) {    return {pickerAction: a,pickedItem: b,suggestor: c,finder: d,labels: e};});
+   var Direction = F5(function (a,b,c,d,e) {    return {picker: a,suggestion: b,pickerOutput: c,pickerDelta: d,labels: e};});
    var DnD = function (a) {    return {ctor: "DnD",_0: a};};
    var Move = F2(function (a,b) {    return {ctor: "Move",_0: a,_1: b};});
+   var movement = function (item) {
+      return $Maybe.Just(A2(Move,
+      item,
+      function () {
+         var _p41 = item;
+         if (_p41.ctor === "Fruit") {
+               return $LabelItem.Veggie(0);
+            } else {
+               return $LabelItem.Fruit(0);
+            }
+      }()));
+   };
    var Quiet = {ctor: "Quiet"};
    var inputMailbox = $Signal.mailbox(Quiet);
-   var tasker = function () {
-      var setTasks = F3(function (vs,dt,tasks) {    var env = vs.env;return {ctor: "_Tuple2",_0: dt,_1: _U.update(vs,{env: _U.update(env,{tasks: tasks})})};});
-      var taskUpdate = F2(function (_p32,pickedItem) {
-         var _p33 = _p32;
-         var _p38 = _p33._1;
-         var _p37 = _p33._0;
-         var _p34 = {ctor: "_Tuple2",_0: _p38.data.pickerAction,_1: pickedItem};
-         _v14_2: do {
-            if (_p34._0.ctor === "Just") {
-                  if (_p34._1.ctor === "Just") {
-                        if (_p34._0._0.ctor === "DropItem") {
-                              var _p36 = _p34._1._0;
-                              var _p35 = A2($Dict.get,_p36,_p38.data.labels);
-                              if (_p35.ctor === "Just") {
-                                    var source = A2($Debug.log,"source",_p38.data.finder(_p36));
-                                    var dest = A2($Debug.log,"dest",_p38.data.suggestor(_p35._0));
-                                    return {ctor: "_Tuple2"
-                                           ,_0: A3(setTasks,_p38,_p37,_U.list([A2($Signal.send,inputMailbox.address,A2(Move,source,dest))]))
-                                           ,_1: $Maybe.Nothing};
-                                 } else {
-                                    return {ctor: "_Tuple2",_0: A3(setTasks,_p38,_p37,_U.list([])),_1: $Maybe.Nothing};
-                                 }
-                           } else {
-                              break _v14_2;
-                           }
-                     } else {
-                        if (_p34._0._0.ctor === "PickupItem") {
-                              return {ctor: "_Tuple2",_0: A3(setTasks,_p38,_p37,_U.list([])),_1: $Maybe.Just(_p34._0._0._0)};
-                           } else {
-                              break _v14_2;
-                           }
-                     }
-               } else {
-                  break _v14_2;
-               }
-         } while (false);
-         return {ctor: "_Tuple2",_0: A3(setTasks,_p38,_p37,_U.list([])),_1: _p34._1};
-      });
-      return A2($Automaton.hiddenState,$Maybe.Nothing,taskUpdate);
-   }();
-   var draggable = F2(function (key,entity) {
-      return A2(entity,
+   var draggable = F4(function (key,styles,attrs,entity) {
+      return A3(entity,
       key,
+      styles,
+      A2($Basics._op["++"],
       _U.list([A2($Html$Events.onMouseDown,inputMailbox.address,DnD($Anima.PickupItem(key)))
               ,A2($Html$Events.onMouseUp,inputMailbox.address,DnD($Anima.DropItem))
-              ,A2($Html$Events.onMouseMove,inputMailbox.address,DnD($Anima.MoveItem))]));
+              ,A2($Html$Events.onMouseMove,inputMailbox.address,DnD($Anima.MoveItem))]),
+      attrs));
    });
-   var fruitsList = function (_p39) {
-      var _p40 = _p39;
+   var fruitsList = function (_p42) {
+      var _p43 = _p42;
+      var _p47 = _p43._1;
       return A2($List.indexedMap,
-      F2(function (i,_p41) {
-         var _p42 = _p41;
-         var _p43 = _p42._0;
-         return A2(draggable,_p43,A4($LabelItem.labelItem$,_p42._1,A2(getPos,_p43,_p40._1.data.labels),$Maybe.Nothing,inputMailbox.address));
+      F2(function (i,_p44) {
+         var _p45 = _p44;
+         var _p46 = _p45._0;
+         return A4(draggable,
+         _p46,
+         A2(lift,_p46,_p47),
+         _U.list([]),
+         A4($LabelItem.labelItem$,_p45._1,A2(getPos,_p46,_p47.data.labels),$Maybe.Nothing,inputMailbox.address));
       }),
-      _p40._0.fruits);
+      _p43._0.fruits);
    };
-   var veggiesList = function (_p44) {
-      var _p45 = _p44;
+   var veggiesList = function (_p48) {
+      var _p49 = _p48;
+      var _p53 = _p49._1;
       return A2($List.indexedMap,
-      F2(function (i,_p46) {
-         var _p47 = _p46;
-         var _p48 = _p47._0;
-         return A2(draggable,_p48,A4($LabelItem.labelItem$,_p47._1,A2(getPos,_p48,_p45._1.data.labels),$Maybe.Nothing,inputMailbox.address));
+      F2(function (i,_p50) {
+         var _p51 = _p50;
+         var _p52 = _p51._0;
+         return A4(draggable,
+         _p52,
+         A2(lift,_p52,_p53),
+         _U.list([]),
+         A4($LabelItem.labelItem$,_p51._1,A2(getPos,_p52,_p53.data.labels),$Maybe.Nothing,inputMailbox.address));
       }),
-      _p45._0.veggies);
+      _p49._0.veggies);
    };
-   var viewer = function (_p49) {
-      var _p50 = _p49;
-      var _p52 = _p50._1;
-      var _p51 = _p50._0;
+   var viewer = function (_p54) {
+      var _p55 = _p54;
+      var _p57 = _p55._1;
+      var _p56 = _p55._0;
       return A2($Html.div,
-      _U.list([]),
+      _U.list([A2($Html$Events.onMouseMove,inputMailbox.address,DnD($Anima.MoveItem)),A2($Html$Events.onMouseUp,inputMailbox.address,DnD($Anima.DropItem))]),
       _U.list([A2($Html.div,
               _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "position",_1: "relative"}
                                                       ,{ctor: "_Tuple2",_0: "padding",_1: "33pt"}
@@ -12246,65 +12293,27 @@ Elm.Veggies4.make = function (_elm) {
                                                       ,{ctor: "_Tuple2",_0: "width",_1: "100%"}
                                                       ,{ctor: "_Tuple2",_0: "height",_1: "250pt"}]))]),
               A2($Basics._op["++"],
-              fruitsList({ctor: "_Tuple2",_0: _p51,_1: _p52}),
-              A2($Basics._op["++"],veggiesList({ctor: "_Tuple2",_0: _p51,_1: _p52}),suggestorLines({ctor: "_Tuple2",_0: _p51,_1: _p52}))))
+              fruitsList({ctor: "_Tuple2",_0: _p56,_1: _p57}),
+              A2($Basics._op["++"],veggiesList({ctor: "_Tuple2",_0: _p56,_1: _p57}),suggestorLines({ctor: "_Tuple2",_0: _p56,_1: _p57}))))
               ,A2($Html.div,
               _U.list([$Html$Attributes.style(_U.list([{ctor: "_Tuple2",_0: "width",_1: "300pt"}
                                                       ,{ctor: "_Tuple2",_0: "padding",_1: "33pt"}
                                                       ,{ctor: "_Tuple2",_0: "font-size",_1: "18pt"}]))]),
               _U.list([$Html.text(A2($Basics._op["++"],
-              A2(dispCount,"fruit",_p51.fruits),
-              A2($Basics._op["++"]," and ",A2(dispCount,"veggie",_p51.veggies))))]))]));
-   };
-   var Veggie = function (a) {    return {ctor: "Veggie",_0: a};};
-   var Fruit = function (a) {    return {ctor: "Fruit",_0: a};};
-   var initial = function () {
-      var dir = {suggestor: function (x) {
-                   return Fruit(0);
-                }
-                ,labels: A2(directionForModel,initialModel,$Dict.empty)
-                ,pickerAction: $Maybe.Nothing
-                ,pickedItem: $Maybe.Nothing
-                ,finder: function (key) {
-                   return Fruit(0);
-                }};
-      return {model: initialModel,direction: dir,viewstate: dir,view: $Html.text("Initializing ...")};
-   }();
-   var animator = function () {
-      var animation = F2(function (key,pos) {    return A4($Physics.particle,$Space.f2d,1.0,pos,$Space.f2d.zero);});
-      var addSpring = F3(function (key,pos,result) {    return A3($Dict.insert,key,_U.list([A3($Physics.Spring,pos,springK,springDamping)]),result);});
-      var particles = A2($Dict.map,animation,initial.direction.labels);
-      var labelSprings = function (_p53) {
-         var _p54 = _p53;
-         return {ctor: "_Tuple2",_0: _p54._0,_1: A3($Dict.foldl,addSpring,$Dict.empty,_p54._1.data.labels)};
-      };
-      var getAction = function (dir) {    return {ctor: "_Tuple2",_0: dir.env.mousePos,_1: dir.data.pickerAction};};
-      var setFields = F3(function (pickerAction,labels,dir) {
-         var data = dir.data;
-         return _U.update(dir,{data: _U.update(data,{labels: labels,pickerAction: pickerAction})});
-      });
-      var pickableLabels = A5($Anima.applyPicker,
-      $Anima.picker,
-      setFields,
-      getAction,
-      $Automaton.pure(labelSprings),
-      A3($Anima.particleColl,self_,initial.direction.labels,particles));
-      return A2($Automaton._op[">>>"],pickableLabels,tasker);
-   }();
-   var movement = function (item) {
-      return $Maybe.Just(A2(Move,item,function () {    var _p55 = item;if (_p55.ctor === "Fruit") {    return Veggie(0);} else {    return Fruit(0);}}()));
+              A2(dispCount,"fruit",_p56.fruits),
+              A2($Basics._op["++"]," and ",A2(dispCount,"veggie",_p56.veggies))))]))]));
    };
    var findEntry = F2(function (key,list) {
       var find = F2(function (i,list) {
          find: while (true) {
-            var _p56 = list;
-            if (_p56.ctor === "[]") {
+            var _p58 = list;
+            if (_p58.ctor === "[]") {
                   return $Maybe.Nothing;
                } else {
-                  if (_U.eq(key,_p56._0._0)) return $Maybe.Just(i); else {
-                        var _v24 = i + 1,_v25 = _p56._1;
-                        i = _v24;
-                        list = _v25;
+                  if (_U.eq(key,_p58._0._0)) return $Maybe.Just(i); else {
+                        var _v27 = i + 1,_v28 = _p58._1;
+                        i = _v27;
+                        list = _v28;
                         continue find;
                      }
                }
@@ -12315,107 +12324,110 @@ Elm.Veggies4.make = function (_elm) {
    var findItem = F2(function (key,model) {
       var veggies = A2(findEntry,key,model.veggies);
       var fruit = A2(findEntry,key,model.fruits);
-      var _p57 = {ctor: "_Tuple2",_0: fruit,_1: veggies};
-      _v26_2: do {
-         if (_p57.ctor === "_Tuple2") {
-               if (_p57._0.ctor === "Just") {
-                     if (_p57._1.ctor === "Nothing") {
-                           return Fruit(_p57._0._0);
+      var _p59 = {ctor: "_Tuple2",_0: fruit,_1: veggies};
+      _v29_2: do {
+         if (_p59.ctor === "_Tuple2") {
+               if (_p59._0.ctor === "Just") {
+                     if (_p59._1.ctor === "Nothing") {
+                           return $LabelItem.Fruit(_p59._0._0);
                         } else {
-                           break _v26_2;
+                           break _v29_2;
                         }
                   } else {
-                     if (_p57._1.ctor === "Just") {
-                           return Veggie(_p57._1._0);
+                     if (_p59._1.ctor === "Just") {
+                           return $LabelItem.Veggie(_p59._1._0);
                         } else {
-                           break _v26_2;
+                           break _v29_2;
                         }
                   }
             } else {
-               break _v26_2;
+               break _v29_2;
             }
       } while (false);
-      return Fruit(0);
+      return $LabelItem.Fruit(0);
    });
-   var director = F2(function (_p58,dir) {
-      var _p59 = _p58;
-      var _p71 = _p59._1;
-      var _p70 = _p59._0;
-      var finder = function (key) {    return A2(findItem,key,_p71);};
-      var _p60 = function () {
-         var _p61 = _p70;
-         _v28_2: do {
-            if (_p61.ctor === "DnD") {
-                  switch (_p61._0.ctor)
-                  {case "PickupItem": var _p62 = _p61._0._0;
-                       return {ctor: "_Tuple2",_0: $Maybe.Just(_p62),_1: $Maybe.Just(A2(findItem,_p62,_p71))};
-                     case "DropItem": return {ctor: "_Tuple2",_0: $Maybe.Nothing,_1: $Maybe.Nothing};
-                     default: break _v28_2;}
-               } else {
-                  break _v28_2;
-               }
-         } while (false);
-         return {ctor: "_Tuple2"
-                ,_0: dir.data.pickedItem
-                ,_1: function () {
-                   var _p63 = dir.data.pickedItem;
-                   if (_p63.ctor === "Just") {
-                         return $Maybe.Just(A2(findItem,_p63._0,_p71));
-                      } else {
-                         return $Maybe.Nothing;
-                      }
-                }()};
-      }();
-      var pickedItem = _p60._0;
-      var pickedIx = _p60._1;
-      var _p64 = {ctor: "_Tuple2",_0: $List.length(_p71.fruits),_1: $List.length(_p71.veggies)};
-      var lenf = _p64._0;
-      var lenv = _p64._1;
+   var director = F2(function (_p60,dir) {
+      var _p61 = _p60;
+      var _p73 = _p61._1;
+      var _p62 = {ctor: "_Tuple2",_0: $List.length(_p73.fruits),_1: $List.length(_p73.veggies)};
+      var lenf = _p62._0;
+      var lenv = _p62._1;
       var fruitLimit = A2(limit,0,lenf);
       var veggieLimit = A2(limit,0,lenv);
       var ignoreNext = F2(function (ix,item) {
-         var _p65 = {ctor: "_Tuple2",_0: ix,_1: item};
-         if (_p65._1.ctor === "Fruit") {
-               if (_p65._0.ctor === "Just" && _p65._0._0.ctor === "Fruit") {
-                     var _p66 = _p65._0._0._0;
-                     var i$ = fruitLimit(_p65._1._0);
-                     return _U.eq(_p66 + 1,i$) ? _p66 : i$;
+         var _p63 = {ctor: "_Tuple2",_0: ix,_1: item};
+         if (_p63._1.ctor === "Fruit") {
+               if (_p63._0.ctor === "Just" && _p63._0._0.ctor === "Fruit") {
+                     var _p64 = _p63._0._0._0;
+                     var i$ = fruitLimit(_p63._1._0);
+                     return _U.eq(_p64 + 1,i$) ? _p64 : i$;
                   } else {
-                     return fruitLimit(_p65._1._0);
+                     return fruitLimit(_p63._1._0);
                   }
             } else {
-               if (_p65._0.ctor === "Just" && _p65._0._0.ctor === "Veggie") {
-                     var _p68 = _p65._0._0._0;
-                     var _p67 = _p65._1._0;
-                     var i$ = veggieLimit(_p67);
-                     return _U.eq(_p68 + 1,i$) ? _p68 : _p67;
+               if (_p63._0.ctor === "Just" && _p63._0._0.ctor === "Veggie") {
+                     var _p65 = _p63._0._0._0;
+                     var i$ = veggieLimit(_p63._1._0);
+                     return _U.eq(_p65 + 1,i$) ? _p65 : i$;
                   } else {
-                     return veggieLimit(_p65._1._0);
+                     return veggieLimit(_p63._1._0);
                   }
             }
       });
+      var _p66 = A2($Automaton.step,{ctor: "_Tuple2",_0: dir.env.mousePos,_1: pickerAction(_p61._0)},dir.data.picker);
+      var picker$ = _p66._0;
+      var pickerOutput = _p66._1;
+      var pickedIx = function () {
+         var _p67 = pickerOutput;
+         if (_p67.ctor === "Just") {
+               return $Maybe.Just(A2(findItem,_p67._0._0,_p73));
+            } else {
+               return $Maybe.Nothing;
+            }
+      }();
       var suggestor = function (pos) {
-         var i = $LabelItem.fruitIndex(pos);
-         return $LabelItem.isNearFruits(pos) ? Fruit(A2(ignoreNext,pickedIx,Fruit(i))) : Veggie(A2(ignoreNext,pickedIx,Veggie(i)));
+         return $LabelItem.isNearFruits(pos) ? $LabelItem.Fruit(A2(ignoreNext,
+         pickedIx,
+         $LabelItem.Fruit($LabelItem.fruitIndex(pos)))) : $LabelItem.Veggie(A2(ignoreNext,pickedIx,$LabelItem.Veggie($LabelItem.veggieIndex(pos))));
       };
-      var pickerAction = function () {    var _p69 = _p70;if (_p69.ctor === "DnD") {    return $Maybe.Just(_p69._0);} else {    return $Maybe.Nothing;}}();
+      var suggestion = A2($Maybe.andThen,
+      pickerOutput,
+      function (_p68) {
+         var _p69 = _p68;
+         var _p71 = _p69._0;
+         var _p70 = {ctor: "_Tuple2",_0: pickedIx,_1: A2($Dict.get,_p71,dir.data.labels)};
+         if (_p70.ctor === "_Tuple2" && _p70._0.ctor === "Just" && _p70._1.ctor === "Just") {
+               var pos$ = A2($Space.f2d.add,_p69._1,_p70._1._0);
+               return $Maybe.Just({ctor: "_Tuple4",_0: _p71,_1: _p70._0._0,_2: suggestor(pos$),_3: pos$});
+            } else {
+               return $Maybe.Nothing;
+            }
+      });
+      var tasks = function () {
+         var _p72 = {ctor: "_Tuple2",_0: suggestion,_1: pickerOutput};
+         if (_p72.ctor === "_Tuple2" && _p72._0.ctor === "Just" && _p72._0._0.ctor === "_Tuple4" && _p72._1.ctor === "Just" && _p72._1._0.ctor === "_Tuple3" && _p72._1._0._2 === false)
+         {
+               return _U.list([A2($Signal.send,inputMailbox.address,A2(Move,_p72._0._0._1,_p72._0._0._2))]);
+            } else {
+               return _U.list([]);
+            }
+      }();
       var env = dir.env;
       var data = dir.data;
       return _U.update(dir,
-      {data: {labels: A2(directionForModel,_p71,dir.data.labels),pickerAction: pickerAction,pickedItem: pickedItem,suggestor: suggestor,finder: finder}});
+      {data: _U.update(data,{labels: A2(directionForModel,_p73,dir.data.labels),picker: picker$,pickerOutput: pickerOutput,suggestion: suggestion})
+      ,env: _U.update(env,{tasks: tasks})});
    });
    var app = {modeller: modeller,director: director,animator: animator,viewer: viewer,initial: initial};
    var appSignal = A2($Anima.runOpinionatedApp,app,inputMailbox.signal);
-   var tasks = Elm.Native.Task.make(_elm).performSignal("tasks",function () {    var _p72 = appSignal;var tasks = _p72._1;return tasks;}());
-   var main = function () {    var _p73 = appSignal;var app = _p73._0;return app;}();
+   var tasks = Elm.Native.Task.make(_elm).performSignal("tasks",function () {    var _p74 = appSignal;var tasks = _p74._1;return tasks;}());
+   var main = function () {    var _p75 = appSignal;var app = _p75._0;return app;}();
    var Model = F2(function (a,b) {    return {fruits: a,veggies: b};});
    var fmin = $Basics.min;
    return _elm.Veggies4.values = {_op: _op
                                  ,fmin: fmin
                                  ,Model: Model
                                  ,findEntry: findEntry
-                                 ,Fruit: Fruit
-                                 ,Veggie: Veggie
                                  ,findItem: findItem
                                  ,Quiet: Quiet
                                  ,Move: Move
@@ -12430,17 +12442,20 @@ Elm.Veggies4.make = function (_elm) {
                                  ,targetter: targetter
                                  ,directionForModel: directionForModel
                                  ,limit: limit
+                                 ,pickerAction: pickerAction
                                  ,director: director
-                                 ,tasker: tasker
                                  ,springK: springK
                                  ,springDamping: springDamping
                                  ,animator: animator
+                                 ,pickerDiff: pickerDiff
                                  ,labels_: labels_
-                                 ,self_: self_
+                                 ,pos_: pos_
                                  ,viewer: viewer
                                  ,fruitsList: fruitsList
                                  ,veggiesList: veggiesList
+                                 ,lift: lift
                                  ,suggestorLines: suggestorLines
+                                 ,line: line
                                  ,dispCount: dispCount
                                  ,dispNum: dispNum
                                  ,pluralize: pluralize
