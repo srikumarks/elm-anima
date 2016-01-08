@@ -149,11 +149,10 @@ type Force space
 
 ### Picker
 
-The `picker` is an automaton that tracks drag and drop operations in a way
-that its output can be used directly by the physics module's notion of
-"particles". It works on a collection of particles where each particle is
-addressed using a string key. It will direct a "drag" force at the selected
-particle based on "pickup", "move" and "drop" events.
+The `picker` is an automaton that tracks drag and drop operations. One item
+at a time can be in the "being picked and dragged" state and the picker
+continuously outputs information about what is currently picked, if any,
+and if so how far has it been moved.
 
 ```elm
 type PickerAction = PickupItem String | MoveItem | DropItem
@@ -165,10 +164,6 @@ The input is the pair `(mousePos, action)` and the output is
 an optional triple of `(key, moveExtent, active)`. The `active` boolean
 will turn false the moment the picker is dropped and will be true as long
 as the item remains "picked".
-
-You can use the picker in conjunction with the `applyPicker` function to
-attach the picker to a particle collection and respond to the events it
-generates. You can use the `particleColl` function to make such a collection.
 
 **PPS**: Drag-n-Drop using these concepts does not use the HTML drag events.
 Instead, it works directly with the mouse events. For the moment, I think this
