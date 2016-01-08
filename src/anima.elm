@@ -109,7 +109,8 @@ type alias Env = { dt : TimeStep
                  , width: Int
                  , height: Int
                  , mousePos : Point2D
-                 , tasks : List (Task.Task () ())
+                 , tasks : List (Task.Task () ()) -- Not really the right place for this,
+                                                  -- but will do for now.
                  }
 type alias WithEnv base = { env : Env, data : base }
 
