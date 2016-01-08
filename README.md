@@ -98,7 +98,11 @@ The framework treats an "app" as a wiring up of four processes - a "modeller", "
 
 - The **Animator** is a process that takes the indications of the director and worries
   about how to reach the indicated stable state. Its output is detailed instructions for
-  "what should be shown right now".
+  "what should be shown right now". While it may look like the distinction between the
+  director and the animator is merely that of role the runtime treats them on different
+  scheduler. The director gets to process each input event as and when it arrives. So it 
+  may execute an arbitrary number of times every second. However, the animator runs
+  at 60fps.
 
   ```elm
   animator : Animation direction viewstate
