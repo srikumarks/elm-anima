@@ -51,11 +51,11 @@ the core application model unmodified --
    if you're that fast. In other words, these are retargetable animations.
 
 7. [veggies4][veggies4_view] ([.elm][veggies4_source])
-   A bit more richer functionality where you can reorder within a list or
+   A bit richer functionality. You can reorder within a list or
    across lists by dragging and dropping labels. Once dropped, the items all
-   animated into their new positions smoothly. Also, you get indicators showing
+   animate into their new positions smoothly. Also, you get indicators showing
    what's been picked up and where it will be dropped if you let go of the
-   mouse picker.
+   mouse picker. This is a precursor to full multi-touch interactions.
 
 [redbox_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/redbox.html
 [redbox_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/redbox.elm
@@ -96,13 +96,14 @@ The framework treats an "app" as a wiring up of four processes - a "modeller", "
   director : Automaton (input, model) direction
   ```
 
-- The **Animator** is a process that takes the indications of the director and worries
-  about how to reach the indicated stable state. Its output is detailed instructions for
-  "what should be shown right now". While it may look like the distinction between the
-  director and the animator is merely that of role the runtime treats them on different
-  scheduler. The director gets to process each input event as and when it arrives. So it 
-  may execute an arbitrary number of times every second. However, the animator runs
-  at 60fps.
+- The **Animator** is a process that takes the indications of the director and
+  worries about how to reach the indicated stable state. Its output is detailed
+  instructions for "what should be shown right now". While it may look like the
+  distinction between the director and the animator is merely that of role, the
+  runtime treats them on different schedules. The director gets to process all
+  input events, including frame step clock ticks. So it may execute an
+  arbitrary number of times every second. However, the animator runs at 60fps
+  - i.e. only once on every frame step.
 
   ```elm
   animator : Animation direction viewstate
