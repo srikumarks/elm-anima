@@ -7,7 +7,7 @@ them as [functional thinking][ft] tools. Anima encompasses normal "fixed"
 animations, retargetable/additive animations as well as physics-based
 animations.  The core library is about 500 lines of Elm code and includes an
 opinionated notion of application architecture that's an elaboration of the
-[Elm architecture][elmarch]. The purpose of the library is not so much as
+[Elm architecture][elmarch]. The (current) purpose of the library is not so much as
 a production grade animation library, but as an exploration of concepts.
 
 For starters, look at the examples in the
