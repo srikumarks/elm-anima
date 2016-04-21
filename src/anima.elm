@@ -101,8 +101,13 @@ type alias App input model direction viewstate output =
         }
     }
 
-type CommonEvent = TimeStep Float | ResizeWindow Int Int | MousePos Int Int
-type Event a = EnvEvent CommonEvent | UserEvent a
+type CommonEvent = TimeStep Float | MousePos Int Int
+type EventU a = EnvEvent CommonEvent | UserEvent a
+type alias Event a = ((Int,Int), EventU a) -- Always pick the current window dimensions.
+                                           -- The "resize window" event is no longer a part
+                                           -- of CommonEvent. If you want to respond to window
+                                           -- dimension changes, present it to the system as
+                                           -- a user event.
 
 type alias Env = { dt : TimeStep
                  , time : Float
@@ -130,13 +135,12 @@ withMousePos pos rec = let env = rec.env
                        in {rec | env = {env | mousePos = pos}}
                     
 timeStep : Event a -> Maybe TimeStep
-timeStep e = case e of
+timeStep (_,e) = case e of
     EnvEvent (TimeStep dt) -> Just dt
     _ -> Nothing
     
 animationNeeded = Signal.constant True
 frames = Time.fpsWhen 60 animationNeeded
-windowResizeEvents = Signal.map (\(w,h) -> EnvEvent (ResizeWindow w h)) Window.dimensions
 timeStepEvents = Signal.map (\dt -> EnvEvent (TimeStep (Time.inSeconds dt))) frames
 mousePositionEvents = Signal.map (\(x,y) -> EnvEvent (MousePos x y)) Mouse.position
 
@@ -157,17 +161,15 @@ convertModeller : (input -> model -> model) -> (Event input -> model -> model)
 convertModeller modeller =
     \ einput model ->
         case einput of
-            UserEvent ue -> modeller ue model
+            (_,UserEvent ue) -> modeller ue model
             _ -> model
 
 convertDirector : 
     ((input,model) -> WithEnv director -> WithEnv director) 
     -> ((Event input, model) -> WithEnv director -> (WithEnv director, WithEnv director))
-convertDirector director =  \(input,model) dir -> 
-        let dir0 = withTimeStep 0.0 dir
+convertDirector director =  \(((w,h),input),model) dir -> 
+        let dir0 = withTimeStep 0.0 dir |> withWindowSize w h
             dir1 = case input of
-                        EnvEvent (ResizeWindow w h) ->
-                            withWindowSize w h dir0
                         EnvEvent (TimeStep dt) ->
                             withTimeStep dt dir0
                         EnvEvent (MousePos x y) ->
@@ -183,12 +185,13 @@ convertDirector director =  \(input,model) dir ->
            (dir2, dir2)
 
 mergeEnvironmentChanges : Signal input -> Signal (Event input)
-mergeEnvironmentChanges sig = Signal.mergeMany 
-                                [ windowResizeEvents
-                                , timeStepEvents
-                                , mousePositionEvents
-                                , Signal.map UserEvent sig
-                                ]
+mergeEnvironmentChanges sig = Signal.map2 (,)
+                                Window.dimensions
+                                (Signal.mergeMany 
+                                    [ timeStepEvents
+                                    , mousePositionEvents
+                                    , Signal.map UserEvent sig
+                                    ])
 
 appify : OpinionatedApp input model direction viewstate output 
             -> App (Event input) model direction viewstate output
@@ -225,7 +228,8 @@ runApp app userInput =
                                                         Just (Task.sequence tasks `Task.andThen` (\x -> Task.succeed ()))
                                                      else
                                                         Nothing)
-                                        (Task.succeed ()))
+                                        (Task.succeed ())
+       )
 
 runOpinionatedApp : OpinionatedApp input model direction viewstate output 
                         -> Signal input 
