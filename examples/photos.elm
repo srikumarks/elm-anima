@@ -53,15 +53,15 @@ clicks = Signal.mailbox Quiet
 
 input = clicks.signal
 
-photoURLs = 
-    [ "http://data.whicdn.com/images/12769998/large.jpg"
-    , "http://amazinganimalphotos.com/wp-content/uploads/2013/04/World-s-Cutest-Kitten-cat-photo.jpg"
-    , "http://www.pets.ie/pet_talk/wp-content/uploads/2013/07/cute-kitty-3.jpg"
-    , "http://hdwpics.com/images/27F4124C4648/Cute-White-Brown-Kittens-HD.jpg"
-    , "http://comparethemadkat.com/wp-content/uploads/2013/09/cat-102.jpg"
-    , "http://www.vrouwen.nl/files/0/0/0/1/00019490.jpg"
-    , "http://my10online.com/wp-content/uploads/2011/09/cutest-kittens-500.jpg"
-    , "https://missswedishkiwi.files.wordpress.com/2015/05/kitten14.jpg"
+photoURLs =
+    [ "http://sriku.org/demos/elm-anima/pictures/k1.jpg"
+    , "http://sriku.org/demos/elm-anima/pictures/k2.jpg"
+    , "http://sriku.org/demos/elm-anima/pictures/k3.jpg"
+    , "http://sriku.org/demos/elm-anima/pictures/k4.jpg"
+    , "http://sriku.org/demos/elm-anima/pictures/k5.jpg"
+    , "http://sriku.org/demos/elm-anima/pictures/k6.jpg"
+    , "http://sriku.org/demos/elm-anima/pictures/k7.jpg"
+    , "http://sriku.org/demos/elm-anima/pictures/k8.jpg"
     ]
 
 initial = 
