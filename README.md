@@ -57,21 +57,21 @@ the core application model unmodified --
    what's been picked up and where it will be dropped if you let go of the
    mouse picker. This is a precursor to full multi-touch interactions.
 
-[redbox_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/redbox.html
+[redbox_view]: http://sriku.org/demos/elm-anima/redbox.html
 [redbox_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/redbox.elm
-[photo_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/photos.html
+[photo_view]: http://sriku.org/demos/elm-anima/photos.html
 [photo_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/photos.elm
-[redbox_physics_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/redbox_physics.html
+[redbox_physics_view]: http://sriku.org/demos/elm-anima/redbox_physics.html
 [redbox_physics_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/redbox_physics.elm
-[veggies1_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/veggies1.html
-[veggies2_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/veggies2.html
-[veggies3_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/veggies3.html
-[veggies4_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/veggies4.html
+[veggies1_view]: http://sriku.org/demos/elm-anima/veggies1.html
+[veggies2_view]: http://sriku.org/demos/elm-anima/veggies2.html
+[veggies3_view]: http://sriku.org/demos/elm-anima/veggies3.html
+[veggies4_view]: http://sriku.org/demos/elm-anima/veggies4.html
 [veggies1_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies1.elm
 [veggies2_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies2.elm
 [veggies3_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies3.elm
 [veggies4_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/veggies4.elm
-[e8_view]: https://cdn.rawgit.com/srikumarks/elm-anima/master/examples/build/example8.html
+[e8_view]: http://sriku.org/demos/elm-anima/example8.html
 [e8_source]: https://github.com/srikumarks/elm-anima/blob/master/examples/example8.elm
 [eatut]: https://github.com/evancz/elm-architecture-tutorial/
 
